@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\API;
 
-use App\Models\Concentration;
 use Illuminate\Http\Request;
+use App\Models\Concentration;
 use Illuminate\Http\JsonResponse;
+use App\Http\Controllers\Controller;
 
 class ConcentrationController extends Controller
 {

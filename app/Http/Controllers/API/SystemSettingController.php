@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\API;
 
-use App\Models\SystemSetting;
 use Illuminate\Http\Request;
+use App\Models\SystemSetting;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Routing\Controller;
 
 class SystemSettingController extends Controller
 {
