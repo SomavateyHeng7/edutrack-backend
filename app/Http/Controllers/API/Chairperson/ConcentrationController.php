@@ -1,53 +1,81 @@
 <?php
-
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Models\Concentration;
-use Illuminate\Http\JsonResponse;
-use App\Http\Controllers\Controller;
 
 class ConcentrationController extends Controller
 {
-    public function index(): JsonResponse
+    // GET /api/concentrations
+    public function index(Request $request)
     {
-        $concentrations = Concentration::with(['department', 'createdBy'])->get();
-        return response()->json($concentrations);
+        $user = Auth::user();
+        if (!$user || !in_array($user->role, ['CHAIRPERSON', 'SUPER_ADMIN'])) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+        // Fetch accessible concentrations (add department/faculty logic as needed)
+        $concentrations = Concentration::with('department')->orderBy('name')->get();
+        return response()->json(['concentrations' => $concentrations]);
     }
 
-    public function store(Request $request): JsonResponse
+    // POST /api/concentrations
+    public function store(Request $request)
     {
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => 'required|string',
+            'departmentId' => 'required|exists:departments,id',
             'description' => 'nullable|string',
-            'department_id' => 'required|string|exists:departments,id',
-            'created_by_id' => 'required|string|exists:users,id',
         ]);
-
         $concentration = Concentration::create($validated);
-        return response()->json($concentration, 201);
+        return response()->json(['concentration' => $concentration], 201);
     }
 
-    public function show(Concentration $concentration): JsonResponse
+    // GET /api/concentrations/{id}
+    public function show($id)
     {
-        $concentration->load(['department', 'createdBy', 'courses.course']);
-        return response()->json($concentration);
+        $user = Auth::user();
+        if (!$user || !in_array($user->role, ['CHAIRPERSON', 'SUPER_ADMIN'])) {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+        $concentration = Concentration::with('department')->find($id);
+        if (!$concentration) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+        return response()->json(['concentration' => $concentration]);
     }
 
-    public function update(Request $request, Concentration $concentration): JsonResponse
+    // PUT /api/concentrations/{id}
+    public function update(Request $request, $id)
     {
-        $validated = $request->validate([
-            'name' => 'string|max:255',
-            'description' => 'nullable|string',
-            'department_id' => 'string|exists:departments,id',
-        ]);
-
-        $concentration->update($validated);
-        return response()->json($concentration);
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+        $concentration = Concentration::find($id);
+        if (!$concentration) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+        $concentration->update($request->only(['name', 'departmentId', 'description']));
+        return response()->json(['concentration' => $concentration]);
     }
-    public function destroy(Concentration $concentration): JsonResponse
+
+    // DELETE /api/concentrations/{id}
+    public function destroy($id)
     {
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+        $concentration = Concentration::find($id);
+        if (!$concentration) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
         $concentration->delete();
-        return response()->json(['message' => 'Concentration deleted successfully']);
+        return response()->json(['message' => 'Deleted']);
     }
 }

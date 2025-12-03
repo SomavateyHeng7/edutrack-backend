@@ -1,149 +1,178 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
 use App\Models\Department;
 use App\Models\Faculty;
 
 class DepartmentController extends Controller
 {
-    // GET /api/departments
+    /**
+     * GET /api/departments
+     */
     public function index(Request $request)
     {
-        try {
-            $user = Auth::user();
-            if (!$user || !in_array($user->role, ['SUPER_ADMIN', 'CHAIRPERSON'])) {
-                return response()->json(['error' => 'Unauthorized - Admin access required'], 401);
-            }
-            $facultyId = $request->query('facultyId');
-            $departments = Department::with([
-                'faculty:id,name,code',
-                'users', 'curricula'
-            ])
-            ->when($facultyId, function ($q) use ($facultyId) {
-                $q->where('faculty_id', $facultyId);
-            })
-            ->withCount(['users', 'curricula'])
-            ->orderBy('name', 'asc')
-            ->get();
+        $departments = Department::with([
+            'faculty:id,name,code',
+            'curricula',
+            'blacklists',
+            'concentrations'
+        ])->get();
 
-            return response()->json(['departments' => $departments]);
-        } catch (\Exception $e) {
-            Log::error('Error fetching departments: ' . $e->getMessage());
-            return response()->json(['error' => 'Failed to fetch departments'], 500);
-        }
+        return response()->json(['departments' => $departments]);
     }
 
-    // POST /api/departments
+    /**
+     * GET /api/departments/{id}
+     */
+    public function show($id)
+    {
+        $department = Department::with([
+            'faculty:id,name,code',
+            'curricula',
+            'blacklists',
+            'concentrations'
+        ])->find($id);
+
+        if (!$department) {
+            return response()->json(['error' => 'Department not found'], 404);
+        }
+
+        return response()->json(['department' => $department]);
+    }
+
+    /**
+     * POST /api/departments
+     */
     public function store(Request $request)
     {
-        try {
-            $user = Auth::user();
-            if (!$user || $user->role !== 'SUPER_ADMIN') {
-                return response()->json(['error' => 'Unauthorized - Super Admin access required'], 401);
-            }
-            $data = $request->only(['name', 'code', 'facultyId']);
-            if (!$data['name'] || !$data['code'] || !$data['facultyId']) {
-                return response()->json(['error' => 'Missing required fields'], 400);
-            }
-            $faculty = Faculty::find($data['facultyId']);
-            if (!$faculty) {
-                return response()->json(['error' => 'Invalid faculty'], 400);
-            }
-            $exists = Department::where([
-                ['code', $data['code']],
-                ['faculty_id', $data['facultyId']],
-            ])->exists();
-            if ($exists) {
-                return response()->json(['error' => 'Department code already exists in this faculty'], 400);
-            }
-            $department = Department::create([
-                'name' => $data['name'],
-                'code' => $data['code'],
-                'faculty_id' => $data['facultyId'],
-            ]);
-            $department->load(['faculty:id,name,code']);
-            return response()->json([
-                'message' => 'Department created successfully',
-                'department' => $department,
-            ], 201);
-        } catch (\Exception $e) {
-            Log::error('Error creating department: ' . $e->getMessage());
-            return response()->json(['error' => 'Error creating department'], 500);
+        $validated = $request->validate([
+            'name'       => 'required|string|max:255',
+            'code'       => 'required|string|max:50',
+            'facultyId'  => 'required|integer',
+        ]);
+
+        // Validate faculty
+        $faculty = Faculty::find($validated['facultyId']);
+        if (!$faculty) {
+            return response()->json(['error' => 'Invalid faculty'], 400);
         }
+
+        // Ensure department code uniqueness inside the same faculty
+        $exists = Department::where('code', $validated['code'])
+            ->where('faculty_id', $validated['facultyId'])
+            ->exists();
+
+        if ($exists) {
+            return response()->json(['error' => 'Department code already exists in this faculty'], 400);
+        }
+
+        // Create department
+        $department = Department::create([
+            'name'       => $validated['name'],
+            'code'       => $validated['code'],
+            'faculty_id' => $validated['facultyId'],
+        ]);
+
+        // Reload with relationships
+        $department = Department::with([
+            'faculty:id,name,code',
+            'curricula',
+            'blacklists',
+            'concentrations'
+        ])->find($department->id);
+
+        return response()->json([
+            'message'    => 'Department created successfully',
+            'department' => $department,
+        ], 201);
     }
 
-    // PUT /api/departments/{departmentId}
-    public function update(Request $request, $departmentId)
+    /**
+     * PUT /api/departments/{id}
+     */
+    public function update(Request $request, $id)
     {
-        try {
-            $data = $request->only(['name', 'code', 'facultyId']);
-            if (!$data['name'] || !$data['code'] || !$data['facultyId']) {
-                return response()->json(['error' => 'Missing required fields'], 400);
-            }
-            $department = Department::find($departmentId);
-            if (!$department) {
-                return response()->json(['error' => 'Department not found'], 404);
-            }
-            $faculty = Faculty::find($data['facultyId']);
-            if (!$faculty) {
-                return response()->json(['error' => 'Invalid faculty'], 400);
-            }
-            $exists = Department::where([
-                ['code', $data['code']],
-                ['faculty_id', $data['facultyId']],
-            ])->where('id', '!=', $departmentId)->exists();
-            if ($exists) {
-                return response()->json(['error' => 'Department code already exists in this faculty'], 400);
-            }
-            $department->update([
-                'name' => $data['name'],
-                'code' => $data['code'],
-                'faculty_id' => $data['facultyId'],
-            ]);
-            $department->load([
-                'faculty:id,name,code',
-                'curricula', 'blacklists', 'concentrations'
-            ]);
-            return response()->json([
-                'message' => 'Department updated successfully',
-                'department' => $department
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error updating department: '.$e->getMessage());
-            return response()->json(['error' => 'Error updating department'], 500);
+        $validated = $request->validate([
+            'name'       => 'required|string|max:255',
+            'code'       => 'required|string|max:50',
+            'facultyId'  => 'required|integer',
+        ]);
+
+        $department = Department::find($id);
+        if (!$department) {
+            return response()->json(['error' => 'Department not found'], 404);
         }
+
+        // Validate faculty
+        $faculty = Faculty::find($validated['facultyId']);
+        if (!$faculty) {
+            return response()->json(['error' => 'Invalid faculty'], 400);
+        }
+
+        // Check for unique department code in the same faculty (exclude current dept)
+        $exists = Department::where('code', $validated['code'])
+            ->where('faculty_id', $validated['facultyId'])
+            ->where('id', '!=', $id)
+            ->exists();
+
+        if ($exists) {
+            return response()->json(['error' => 'Department code already exists in this faculty'], 400);
+        }
+
+        // Update department
+        $department->update([
+            'name'       => $validated['name'],
+            'code'       => $validated['code'],
+            'faculty_id' => $validated['facultyId'],
+        ]);
+
+        // Reload with relationships
+        $department = Department::with([
+            'faculty:id,name,code',
+            'curricula',
+            'blacklists',
+            'concentrations'
+        ])->find($id);
+
+        return response()->json([
+            'message'    => 'Department updated successfully',
+            'department' => $department,
+        ]);
     }
 
-    // DELETE /api/departments/{departmentId}
-    public function destroy($departmentId)
+    /**
+     * DELETE /api/departments/{id}
+     */
+    public function destroy($id)
     {
-        try {
-            $department = Department::withCount(['curricula', 'blacklists', 'concentrations'])->find($departmentId);
-            if (!$department) {
-                return response()->json(['error' => 'Department not found'], 404);
-            }
-            if ($department->curricula_count > 0 || $department->blacklists_count > 0 || $department->concentrations_count > 0) {
-                return response()->json([
-                    'error' => 'Cannot delete department with associated curricula, blacklists, or concentrations',
-                    'details' => [
-                        'curricula' => $department->curricula_count,
-                        'blacklists' => $department->blacklists_count,
-                        'concentrations' => $department->concentrations_count,
-                    ]
-                ], 400);
-            }
-            $department->delete();
-            return response()->json([
-                'message' => 'Department deleted successfully'
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error deleting department: '.$e->getMessage());
-            return response()->json(['error' => 'Error deleting department'], 500);
+        $department = Department::withCount(['curricula', 'blacklists', 'concentrations'])->find($id);
+
+        if (!$department) {
+            return response()->json(['error' => 'Department not found'], 404);
         }
+
+        // Prevent deletion if related data exists
+        if ($department->curricula_count > 0 ||
+            $department->blacklists_count > 0 ||
+            $department->concentrations_count > 0) {
+
+            return response()->json([
+                'error' => 'Cannot delete department with associated curricula, blacklists, or concentrations',
+                'details' => [
+                    'curricula'      => $department->curricula_count,
+                    'blacklists'     => $department->blacklists_count,
+                    'concentrations' => $department->concentrations_count,
+                ],
+            ], 400);
+        }
+
+        // Safe delete
+        $department->delete();
+
+        return response()->json([
+            'message' => 'Department deleted successfully',
+        ]);
     }
 }
