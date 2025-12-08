@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Auth
-use App\Http\Controllers\API\Auth\AuthController;
+use App\Http\Controllers\AuthController;
 
 // Admin
 use App\Http\Controllers\FacultyController;
