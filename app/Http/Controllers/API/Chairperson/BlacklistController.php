@@ -22,7 +22,7 @@ class BlacklistController extends Controller
         }
         $accessibleDepartmentIds = $faculty->departments->pluck('id')->toArray();
 
-        $blacklists = Blacklist::whereIn('departmentId', $accessibleDepartmentIds)
+        $blacklists = Blacklist::whereIn('department_id', $accessibleDepartmentIds)
             ->with([
                 'department:id,name',
                 'createdBy:id,name',
@@ -38,7 +38,7 @@ class BlacklistController extends Controller
                     'id' => $bl->id,
                     'name' => $bl->name,
                     'description' => $bl->description,
-                    'departmentId' => $bl->departmentId,
+                    'departmentId' => $bl->department_id,
                     'department' => $bl->department,
                     'createdBy' => $bl->createdBy,
                     'courses' => $bl->courses->map(fn($bc) => $bc->course),
@@ -77,8 +77,8 @@ class BlacklistController extends Controller
         ]);
 
         $conflict = Blacklist::where('name', $validated['name'])
-            ->where('departmentId', $validated['departmentId'])
-            ->where('createdById', $user->id)
+            ->where('department_id', $validated['departmentId'])
+            ->where('created_by_id', $user->id)
             ->first();
         if ($conflict) {
             return response()->json(['error' => 'A blacklist with this name already exists'], 409);
@@ -87,8 +87,8 @@ class BlacklistController extends Controller
         $blacklist = Blacklist::create([
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
-            'departmentId' => $validated['departmentId'],
-            'createdById' => $user->id,
+            'department_id' => $validated['departmentId'],
+            'created_by_id' => $user->id,
         ]);
 
         if (!empty($validated['courseIds'])) {
@@ -126,7 +126,7 @@ class BlacklistController extends Controller
         $accessibleDepartmentIds = $faculty->departments->pluck('id')->toArray();
 
         $blacklist = Blacklist::where('id', $id)
-            ->whereIn('departmentId', $accessibleDepartmentIds)
+            ->whereIn('department_id', $accessibleDepartmentIds)
             ->with([
                 'courses.course:id,code,name,credits,description',
                 'department:id,name',
@@ -144,7 +144,7 @@ class BlacklistController extends Controller
                 'id' => $blacklist->id,
                 'name' => $blacklist->name,
                 'description' => $blacklist->description,
-                'departmentId' => $blacklist->departmentId,
+                'departmentId' => $blacklist->department_id,
                 'department' => $blacklist->department,
                 'createdBy' => $blacklist->createdBy,
                 'courses' => $blacklist->courses->map(fn($bc) => $bc->course),
@@ -194,8 +194,8 @@ class BlacklistController extends Controller
 
         if ($name && trim($name) !== $blacklist->name) {
             $nameConflict = Blacklist::where('name', trim($name))
-                ->where('departmentId', $blacklist->departmentId)
-                ->where('createdById', $user->id)
+                ->where('department_id', $blacklist->department_id)
+                ->where('created_by_id', $user->id)
                 ->where('id', '!=', $id)
                 ->first();
             if ($nameConflict) {
@@ -263,7 +263,7 @@ class BlacklistController extends Controller
                 'id' => $updatedBlacklist->id,
                 'name' => $updatedBlacklist->name,
                 'description' => $updatedBlacklist->description,
-                'departmentId' => $updatedBlacklist->departmentId,
+                'departmentId' => $updatedBlacklist->department_id,
                 'department' => $updatedBlacklist->department,
                 'createdBy' => $updatedBlacklist->createdBy,
                 'courses' => $updatedBlacklist->courses->map(fn($bc) => $bc->course),
@@ -289,7 +289,7 @@ class BlacklistController extends Controller
         $accessibleDepartmentIds = $faculty->departments->pluck('id')->toArray();
 
         $blacklist = Blacklist::where('id', $id)
-            ->whereIn('departmentId', $accessibleDepartmentIds)
+            ->whereIn('department_id', $accessibleDepartmentIds)
             ->with('curriculumBlacklists')
             ->first();
 

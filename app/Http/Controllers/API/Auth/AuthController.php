@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\API\Auth;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +37,7 @@ class AuthController extends Controller
                 ]);
             }
 
-            // Support both plaintext and hashed passwords (matching your NextAuth logic)
+            // Support both plaintext and hashed passwords
             $passwordValid = $request->password === $user->password || 
                             Hash::check($request->password, $user->password);
 
@@ -47,8 +47,8 @@ class AuthController extends Controller
                 ]);
             }
 
-            // Create token
-            $token = $user->createToken('auth-token')->plainTextToken;
+            // Use Laravel's built-in session-based authentication for SPA
+            auth()->login($user);
 
             return response()->json([
                 'user' => [
@@ -61,7 +61,6 @@ class AuthController extends Controller
                     'faculty' => $user->faculty,
                     'department' => $user->department,
                 ],
-                'token' => $token
             ], 200);
 
         } catch (ValidationException $e) {
@@ -80,7 +79,9 @@ class AuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         try {
-            $request->user()->currentAccessToken()->delete();
+            auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
             
             return response()->json([
                 'message' => 'Successfully logged out'
