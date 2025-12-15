@@ -88,6 +88,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/curricula/{id}', [CurriculaController::class, 'show']);
     Route::put('/curricula/{id}', [CurriculaController::class, 'update']);
     Route::delete('/curricula/{id}', [CurriculaController::class, 'destroy']);
+    
+    // Curriculum sub-resources
+    Route::get('/curricula/{id}/elective-rules', [CurriculaController::class, 'electiveRules']);
+    Route::get('/curricula/{id}/concentrations', [CurriculaController::class, 'concentrations']);
+    Route::get('/curricula/{id}/blacklists', [CurriculaController::class, 'blacklists']);
 
     // Courses
     Route::get('/courses', [CourseController::class, 'index']);
@@ -128,6 +133,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // System Setting
     Route::get('/system-settings', [SystemSettingController::class, 'index']);
+
+    // Curriculum (CurriculumController) - separate from Curricula
+    Route::post('/curriculum/upload', [CurriculumController::class, 'upload']);
+    Route::get('/curriculum/bscs2022', [CurriculumController::class, 'bscs2022']);
+    Route::get('/curriculum/template', [CurriculumController::class, 'template']);
+    Route::get('/curriculum/{id}', [CurriculumController::class, 'show']);
+    Route::put('/curriculum/{id}', [CurriculumController::class, 'update']);
+    Route::delete('/curriculum/{id}', [CurriculumController::class, 'destroy']);
+    Route::get('/curriculum/{id}/courses', [CurriculumController::class, 'courses']);
+    Route::post('/curriculum/{id}/courses', [CurriculumController::class, 'addCourse']);
+    Route::delete('/curriculum/{id}/courses/{courseId}', [CurriculumController::class, 'removeCourse']);
 
     // Download
     Route::get('/download/sample-xlsx', [DownloadController::class, 'sampleXlsx']);

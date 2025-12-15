@@ -4,6 +4,8 @@ namespace App\Http\Controllers\API\Chairperson;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\{
     Curriculum,
     CurriculumCourse,
@@ -13,7 +15,9 @@ use App\Models\{
     Concentration,
     Blacklist,
     Constraint,
-    ElectiveRule
+    ElectiveRule,
+    AuditLog,
+    User
 };
 
 class CurriculumController extends Controller
@@ -49,10 +53,10 @@ class CurriculumController extends Controller
     {
         $curriculum = Curriculum::with([
             'department:id,name,code',
-            'courses.course',
-            'concentrations',
-            'blacklists',
-            'constraints',
+            'curriculumCourses.course',
+            'curriculumConcentrations',
+            'curriculumBlacklists',
+            'curriculumConstraints',
             'electiveRules'
         ])->find($id);
 
@@ -108,12 +112,12 @@ class CurriculumController extends Controller
     // GET /api/curriculum/{id}/courses
     public function courses($id)
     {
-        $curriculum = Curriculum::with('courses.course')->find($id);
+        $curriculum = Curriculum::with('curriculumCourses.course')->find($id);
         if (!$curriculum) {
             return response()->json(['error' => 'Curriculum not found'], 404);
         }
 
-        $courses = $curriculum->courses->map(function ($cc) {
+        $courses = $curriculum->curriculumCourses->map(function ($cc) {
             return [
                 'code' => $cc->course->code,
                 'name' => $cc->course->name,
@@ -173,7 +177,7 @@ class CurriculumController extends Controller
             return response()->json(['error' => 'Curriculum not found'], 404);
         }
 
-        $concentrations = $curriculum->concentrations()->with('courses.course')->get();
+        $concentrations = $curriculum->curriculumConcentrations()->with('concentration.concentrationCourses.course')->get();
 
         return response()->json(['concentrations' => $concentrations]);
     }
@@ -186,7 +190,7 @@ class CurriculumController extends Controller
             return response()->json(['error' => 'Curriculum not found'], 404);
         }
 
-        $blacklists = $curriculum->blacklists()->with('course')->get();
+        $blacklists = $curriculum->curriculumBlacklists()->with('blacklist.blacklistCourses.course')->get();
 
         return response()->json(['blacklists' => $blacklists]);
     }
@@ -199,7 +203,7 @@ class CurriculumController extends Controller
             return response()->json(['error' => 'Curriculum not found'], 404);
         }
 
-        $constraints = $curriculum->constraints()->with('course')->get();
+        $constraints = $curriculum->curriculumConstraints()->get();
 
         return response()->json(['constraints' => $constraints]);
     }
@@ -307,7 +311,7 @@ class CurriculumController extends Controller
     public function bscs2022()
     {
         $curriculum = Curriculum::where('code', 'BSCS2022')
-            ->with(['courses.course', 'department:id,name,code'])
+            ->with(['curriculumCourses.course', 'department:id,name,code'])
             ->first();
 
         if (!$curriculum) {
@@ -333,21 +337,174 @@ class CurriculumController extends Controller
     // POST /api/curriculum/upload
     public function upload(Request $request)
     {
-        $user = Auth::user();
-        if (!$user || $user->role !== 'CHAIRPERSON') {
-            return response()->json(['error' => 'Chairperson access required'], 403);
-        }
+        try {
+            Log::info('📁 Curriculum upload endpoint called');
+            
+            $user = Auth::user();
+            Log::info('🔐 Session user:', ['id' => $user?->id, 'role' => $user?->role]);
+            
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
 
-        if (!$request->hasFile('file')) {
-            return response()->json(['error' => 'No file uploaded'], 400);
-        }
+            // Validate request
+            $request->validate([
+                'file' => 'required|file|mimes:csv,txt',
+                'curriculumId' => 'required|string|exists:curricula,id'
+            ]);
 
-        $file = $request->file('file');
-        // Process file (CSV/XLSX parsing logic goes here)
-        return response()->json([
-            'filename' => $file->getClientOriginalName(),
-            'size' => $file->getSize(),
-            'mime' => $file->getMimeType()
-        ]);
+            $file = $request->file('file');
+            $curriculumId = $request->input('curriculumId');
+
+            Log::info('📋 Form data', ['file' => $file->getClientOriginalName(), 'curriculumId' => $curriculumId]);
+
+            // Get user's department and faculty for access control
+            $userWithRelations = User::with([
+                'department.faculty.departments'
+            ])->find($user->id);
+
+            if (!$userWithRelations->department || !$userWithRelations->department->faculty) {
+                return response()->json(['error' => 'User department not found'], 403);
+            }
+
+            // Get accessible department IDs (all departments in user's faculty)
+            $accessibleDepartmentIds = $userWithRelations->department->faculty->departments->pluck('id')->toArray();
+
+            // Check if curriculum exists and user has department access
+            $curriculum = Curriculum::whereIn('department_id', $accessibleDepartmentIds)
+                ->find($curriculumId);
+
+            Log::info('🎓 Curriculum found', ['found' => !!$curriculum, 'id' => $curriculumId]);
+
+            if (!$curriculum) {
+                return response()->json(['error' => 'Curriculum not found'], 404);
+            }
+
+            // Read and parse CSV file
+            $fileContent = file_get_contents($file->getRealPath());
+            $rows = array_map('str_getcsv', explode("\n", $fileContent));
+            $header = array_shift($rows);
+            
+            // Remove empty rows
+            $rows = array_filter($rows, function($row) {
+                return !empty(array_filter($row));
+            });
+
+            $records = [];
+            foreach ($rows as $row) {
+                if (count($row) === count($header)) {
+                    $records[] = array_combine($header, $row);
+                }
+            }
+
+            Log::info('📊 CSV records parsed', ['count' => count($records)]);
+            if (!empty($records)) {
+                Log::info('📝 First record', $records[0]);
+            }
+
+            // Validate CSV structure
+            $requiredColumns = ['code', 'name', 'credits', 'category'];
+            if (empty($records) || !empty(array_diff($requiredColumns, array_keys($records[0])))) {
+                return response()->json([
+                    'error' => 'Invalid CSV format. Required columns: code, name, credits, category'
+                ], 400);
+            }
+
+            // Process records and create/update courses
+            $courses = array_map(function($record) {
+                return [
+                    'code' => $record['code'],
+                    'name' => $record['name'],
+                    'credits' => (int)$record['credits'],
+                    'category' => $record['category'],
+                    'credit_hours' => $record['creditHours'] ?? $record['credit_hours'] ?? ($record['credits'] . '-0-' . ($record['credits'] * 2)),
+                    'description' => $record['description'] ?? '',
+                ];
+            }, $records);
+
+            // Use transaction to ensure data consistency
+            $result = DB::transaction(function () use ($curriculumId, $courses, $user) {
+                Log::info('🔄 Starting database transaction', ['courseCount' => count($courses)]);
+                
+                // Remove existing course relationships for this curriculum
+                CurriculumCourse::where('curriculum_id', $curriculumId)->delete();
+                Log::info('🗑️ Removed existing curriculum-course relationships');
+
+                // Process each course
+                $coursesProcessed = 0;
+                foreach ($courses as $courseData) {
+                    Log::info('📚 Processing course', [
+                        'progress' => ($coursesProcessed + 1) . '/' . count($courses),
+                        'code' => $courseData['code']
+                    ]);
+                    
+                    // Check if course exists globally
+                    $course = Course::where('code', $courseData['code'])->first();
+
+                    if ($course) {
+                        Log::info('♻️ Updating existing course', ['code' => $courseData['code']]);
+                        // Course exists - update it
+                        $course->update([
+                            'name' => $courseData['name'],
+                            'credits' => $courseData['credits'],
+                            'credit_hours' => $courseData['credit_hours'],
+                            'description' => $courseData['description'],
+                        ]);
+                    } else {
+                        Log::info('✨ Creating new course', ['code' => $courseData['code']]);
+                        // Create new course in global pool
+                        $course = Course::create([
+                            'code' => $courseData['code'],
+                            'name' => $courseData['name'],
+                            'credits' => $courseData['credits'],
+                            'credit_hours' => $courseData['credit_hours'],
+                            'description' => $courseData['description'],
+                            'requires_permission' => false,
+                            'summer_only' => false,
+                            'requires_senior_standing' => false,
+                            'is_active' => true,
+                        ]);
+                    }
+
+                    Log::info('🔗 Creating curriculum-course relationship', ['code' => $course->code]);
+                    // Create curriculum-course relationship
+                    CurriculumCourse::create([
+                        'curriculum_id' => $curriculumId,
+                        'course_id' => $course->id,
+                        'is_required' => true,
+                        'position' => $coursesProcessed,
+                    ]);
+
+                    $coursesProcessed++;
+                }
+
+                // Create audit log
+                AuditLog::create([
+                    'user_id' => $user->id,
+                    'entity_type' => 'Curriculum',
+                    'entity_id' => $curriculumId,
+                    'action' => 'IMPORT',
+                    'description' => "Uploaded {$coursesProcessed} courses via CSV",
+                    'curriculum_id' => $curriculumId,
+                    'changes' => [
+                        'coursesUploaded' => $coursesProcessed,
+                        'courseList' => array_column($courses, 'code'),
+                    ],
+                ]);
+
+                Log::info('✅ Transaction completed successfully', ['coursesProcessed' => $coursesProcessed]);
+                return ['coursesProcessed' => $coursesProcessed];
+            });
+
+            return response()->json([
+                'message' => 'Curriculum updated successfully',
+                'coursesProcessed' => $result['coursesProcessed'],
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ Error uploading curriculum', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return response()->json([
+                'error' => 'Error uploading curriculum: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
