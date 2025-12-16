@@ -15,11 +15,22 @@ class DepartmentController extends Controller
     public function index(Request $request)
     {
         $departments = Department::with([
-            'faculty:id,name,code',
-            'curricula',
-            'blacklists',
-            'concentrations'
-        ])->get();
+            'faculty:id,name,code'
+        ])->withCount(['users', 'curricula', 'concentrations'])
+        ->get()->map(function ($dept) {
+            return [
+                'id' => $dept->id,
+                'name' => $dept->name,
+                'code' => $dept->code,
+                'facultyId' => $dept->faculty_id,
+                'faculty' => $dept->faculty,
+                'usersCount' => $dept->users_count ?? 0,
+                'curriculaCount' => $dept->curricula_count ?? 0,
+                'concentrationsCount' => $dept->concentrations_count ?? 0,
+                'createdAt' => $dept->created_at,
+                'updatedAt' => $dept->updated_at,
+            ];
+        });
 
         return response()->json(['departments' => $departments]);
     }

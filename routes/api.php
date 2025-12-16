@@ -8,34 +8,36 @@ use App\Http\Controllers\API\Auth\AuthController;
 
 // Public endpoints
 use App\Http\Controllers\PublicFacultyController;
-use App\Http\Controllers\PublicDepartmentController;
+use App\Http\Controllers\API\Admin\UserController;
 use App\Http\Controllers\PublicCurriculumController;
-use App\Http\Controllers\PublicConcentrationController;
+use App\Http\Controllers\PublicDepartmentController;
 
 // Admin
 use App\Http\Controllers\API\Admin\FacultyController;
+use App\Http\Controllers\API\SystemSettingController;
+use App\Http\Controllers\PublicConcentrationController;
 use App\Http\Controllers\API\Admin\DepartmentController;
-use App\Http\Controllers\API\Admin\UserController;
-use App\Http\Controllers\API\Admin\DashboardStatsController;
 
 // Chairperson
-use App\Http\Controllers\API\Chairperson\CurriculaController;
-use App\Http\Controllers\API\Chairperson\CurriculumController;
+use App\Http\Controllers\API\Download\DownloadController;
 use App\Http\Controllers\API\Chairperson\CourseController;
-use App\Http\Controllers\API\Chairperson\CourseTypeController;
-use App\Http\Controllers\API\Chairperson\ConcentrationCourseController;
-use App\Http\Controllers\API\Chairperson\AvailableCourseController;
+use App\Http\Controllers\API\Admin\DashboardStatsController;
 use App\Http\Controllers\API\Chairperson\BlacklistController;
-use App\Http\Controllers\API\Chairperson\FacultyLabelController;
+use App\Http\Controllers\API\Chairperson\CurriculaController;
+use App\Http\Controllers\API\Chairperson\CourseTypeController;
+use App\Http\Controllers\API\Chairperson\CurriculumController;
+use App\Http\Controllers\API\Student\CompletedCourseController;
+use App\Http\Controllers\API\Chairperson\ElectiveRuleController;
+use App\Http\Controllers\API\Chairperson\AvailableCourseController;
 
 // Student
-use App\Http\Controllers\API\Student\CompletedCourseController;
+use App\Http\Controllers\API\Chairperson\FacultyLabelController;
 
 // System Setting
-use App\Http\Controllers\API\SystemSettingController;
 
 // Download
-use App\Http\Controllers\API\Download\DownloadController;
+use App\Http\Controllers\API\Chairperson\ConcentrationCourseController;
+use App\Http\Controllers\API\Chairperson\CurriculumBlacklistController;
 
 // Public APIs
 Route::get('/public-faculties', [PublicFacultyController::class, 'index']);
@@ -43,17 +45,23 @@ Route::get('/public-departments', [PublicDepartmentController::class, 'index']);
 Route::get('/public-curricula', [PublicCurriculumController::class, 'index']);
 Route::get('/public-curricula/{id}', [PublicCurriculumController::class, 'show']);
 Route::get('/public-concentrations', [PublicConcentrationController::class, 'index']);
+Route::get('/public-curricula/{id}/blacklists', [PublicCurriculumController::class, 'blacklists']);
+
+// Available Courses
+Route::get('/available-courses', [AvailableCourseController::class, 'index']);
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware(['auth:sanctum'])->group(function () {
-        // Concentrations
-        Route::get('/concentrations', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'index']);
-        Route::post('/concentrations', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'store']);
-        Route::get('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'show']);
-        Route::put('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'update']);
-        Route::delete('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'destroy']);
+    
+    // Concentrations
+    Route::get('/concentrations', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'index']);
+    Route::post('/concentrations', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'store']);
+    Route::get('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'show']);
+    Route::put('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'update']);  
+    Route::delete('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'destroy']);
+    
     // Auth routes
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
@@ -94,18 +102,62 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/curricula/{id}/concentrations', [CurriculaController::class, 'concentrations']);
     Route::get('/curricula/{id}/blacklists', [CurriculaController::class, 'blacklists']);
 
-    // Courses
-    Route::get('/courses', [CourseController::class, 'index']);
-    Route::post('/courses', [CourseController::class, 'store']);
-    Route::get('/courses/{id}', [CourseController::class, 'show']);
-    Route::put('/courses/{id}', [CourseController::class, 'update']);
-    Route::delete('/courses/{id}', [CourseController::class, 'destroy']);
+   Route::prefix('courses')->middleware('auth:sanctum')->group(function () {
+
+    // =========================
+    // BASIC CRUD
+    // =========================
+    Route::get('/', [CourseController::class, 'index']);
+    Route::post('/', [CourseController::class, 'store']);
+
+    // =========================
+    // SEARCH & BULK
+    // =========================
+    Route::get('/search', [CourseController::class, 'search']);
+    Route::post('/bulk-create', [CourseController::class, 'bulkCreate']);
+
+    // =========================
+    // COURSE-SPECIFIC
+    // =========================
+    Route::get('/{course}', [CourseController::class, 'show']);
+    Route::put('/{course}', [CourseController::class, 'update']);
+    Route::delete('/{course}', [CourseController::class, 'destroy']);
+
+    // =========================
+    // CONSTRAINTS
+    // =========================
+    Route::get('/{course}/constraints', [CourseController::class, 'constraints']);
+
+    // =========================
+    // PREREQUISITES
+    // =========================
+    Route::get('/{course}/prerequisites', [CourseController::class, 'prerequisites']);
+    Route::post('/{course}/prerequisites', [CourseController::class, 'addPrerequisite']);
+    Route::delete('/{course}/prerequisites/{relation}', [CourseController::class, 'removePrerequisite']);
+
+    // =========================
+    // COREQUISITES
+    // =========================
+    Route::get('/{course}/corequisites', [CourseController::class, 'corequisites']);
+    Route::post('/{course}/corequisites', [CourseController::class, 'addCorequisite']);
+    Route::delete('/{course}/corequisites/{relation}', [CourseController::class, 'removeCorequisite']);
+});
+
+
+    //course search
+    Route::get('/courses/search', [CourseController::class, 'search']);
 
     // Course Types
-    Route::get('/course-types', [CourseTypeController::class, 'index']);
-    Route::post('/course-types', [CourseTypeController::class, 'store']);
-    Route::put('/course-types/{id}', [CourseTypeController::class, 'update']);
-    Route::delete('/course-types/{id}', [CourseTypeController::class, 'destroy']);
+    Route::prefix('course-types')->group(function () {
+        Route::get('/', [CourseTypeController::class, 'index']);
+        Route::post('/', [CourseTypeController::class, 'store']);
+
+        Route::post('/assign', [CourseTypeController::class, 'bulkAssign']);
+
+        Route::get('/{id}', [CourseTypeController::class, 'show']);
+        Route::put('/{id}', [CourseTypeController::class, 'update']);
+        Route::delete('/{id}', [CourseTypeController::class, 'destroy']);
+    });
 
     // Concentration Courses
     Route::get('/concentration-courses', [ConcentrationCourseController::class, 'index']);
@@ -114,15 +166,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/concentration-courses/{id}', [ConcentrationCourseController::class, 'update']);
     Route::delete('/concentration-courses/{id}', [ConcentrationCourseController::class, 'destroy']);
 
-    // Available Courses
-    Route::get('/available-courses', [AvailableCourseController::class, 'index']);
-
     // Blacklists
     Route::get('/blacklists', [BlacklistController::class, 'index']);
     Route::post('/blacklists', [BlacklistController::class, 'store']);
     Route::get('/blacklists/{id}', [BlacklistController::class, 'show']);
     Route::put('/blacklists/{id}', [BlacklistController::class, 'update']);
     Route::delete('/blacklists/{id}', [BlacklistController::class, 'destroy']);
+    Route::get('/blacklists/courses/search', [BlacklistController::class, 'searchCourses']);
+
+    // Curriculum Blacklists
+    Route::get('/curricula/{id}/blacklists', [CurriculumBlacklistController::class, 'index']);
+    Route::post('/curricula/{id}/blacklists', [CurriculumBlacklistController::class, 'store']);
+    Route::delete('/curricula/{id}/blacklists/{blacklistId}', [CurriculumBlacklistController::class, 'destroy']);
+
 
     // Faculty Label (Concentration Label)
     Route::get('/faculty/concentration-label', [FacultyLabelController::class, 'getConcentrationLabel']);
@@ -145,7 +201,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/curriculum/{id}/courses', [CurriculumController::class, 'addCourse']);
     Route::delete('/curriculum/{id}/courses/{courseId}', [CurriculumController::class, 'removeCourse']);
 
+    // Elective Rules
+    Route::prefix('curricula/{curriculum}')->group(function () {
+        Route::get('/elective-rules', [ElectiveRuleController::class, 'index']);
+        Route::post('/elective-rules', [ElectiveRuleController::class, 'store']);
+        Route::put('/elective-rules/settings', [ElectiveRuleController::class, 'updateSettings']);
+        Route::put('/elective-rules/{rule}', [ElectiveRuleController::class, 'update']);
+        Route::delete('/elective-rules/{rule}', [ElectiveRuleController::class, 'destroy']);
+    });
+
     // Download
     Route::get('/download/sample-xlsx', [DownloadController::class, 'sampleXlsx']);
     Route::get('/download/sample-csv', [DownloadController::class, 'sampleCsv']);
+
 });
