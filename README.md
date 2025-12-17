@@ -1,59 +1,115 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+# EduTrack Backend
 
-## About Laravel
+EduTrack Backend is a Laravel-based RESTful API server for managing university curricula, courses, departments, concentrations, blacklists, constraints, and user roles (Chairperson, Faculty, etc.). It provides endpoints for curriculum management, course uploads, access control, and audit logging.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Table of Contents
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Setup & Installation](#setup--installation)
+- [Environment Configuration](#environment-configuration)
+- [Running the Application](#running-the-application)
+- [API Overview](#api-overview)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Features
+- Curriculum CRUD (Create, Read, Update, Delete)
+- Course management (add/remove courses to curricula)
+- Prerequisite and corequisite management
+- Concentration and blacklist management
+- Constraint and elective rule management
+- CSV upload for bulk curriculum/course updates
+- Role-based access control (Chairperson, Faculty, etc.)
+- Audit logging for sensitive actions
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Project Structure
 
-## Learning Laravel
+```
+├── app/
+│   ├── Http/Controllers/API/Chairperson/CurriculumController.php
+│   ├── Models/
+│   └── ...
+├── config/
+├── database/
+├── routes/
+│   ├── api.php
+│   └── ...
+├── tests/
+├── public/
+├── resources/
+├── composer.json
+├── package.json
+└── README.md
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Setup & Installation
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. **Clone the repository:**
+	```bash
+	git clone https://github.com/your-org/edutrack-backend.git
+	cd edutrack-backend
+	```
+2. **Install dependencies:**
+	```bash
+	composer install
+	npm install
+	```
+3. **Copy and configure environment:**
+	```bash
+	cp .env.example .env
+	# Edit .env as needed (DB, mail, etc.)
+	```
+4. **Generate application key:**
+	```bash
+	php artisan key:generate
+	```
+5. **Run migrations and seeders:**
+	```bash
+	php artisan migrate --seed
+	```
 
-## Laravel Sponsors
+## Running the Application
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Start the local development server:
 
-### Premium Partners
+```bash
+php artisan serve
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## API Overview
+
+The API is organized under `/api/`. Key endpoints include:
+
+- `GET    /api/curriculum` — List all curricula
+- `POST   /api/curriculum` — Create a new curriculum (Chairperson only)
+- `GET    /api/curriculum/{id}` — Get curriculum details
+- `PUT    /api/curriculum/{id}` — Update curriculum (Chairperson only)
+- `DELETE /api/curriculum/{id}` — Delete curriculum (Chairperson only)
+- `POST   /api/curriculum/upload` — Upload curriculum courses via CSV (Chairperson only)
+- `GET    /api/curriculum/{id}/courses` — List courses in a curriculum
+- `POST   /api/curriculum/{id}/courses` — Add course to curriculum
+- `DELETE /api/curriculum/{id}/courses/{courseId}` — Remove course from curriculum
+- ...and more for concentrations, blacklists, constraints, prerequisites, and corequisites.
+
+See the `docs/` folder for detailed API documentation and usage examples.
+
+## Testing
+
+Run tests using PHPUnit:
+
+```bash
+php artisan test
+```
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/your-feature`)
+3. Commit your changes with clear messages
+4. Push to your fork and submit a pull request
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is open-sourced under the [MIT license](https://opensource.org/licenses/MIT).

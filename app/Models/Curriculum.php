@@ -16,6 +16,7 @@ class Curriculum extends Model
         'year',
         'version',
         'description',
+        'total_credits_required',
         'start_id',
         'end_id',
         'is_active',

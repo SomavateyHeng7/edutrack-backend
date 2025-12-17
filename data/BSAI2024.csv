@@ -1,0 +1,140 @@
+﻿Course Code,Course Title,Credits,Course Description,Crd Hour
+ELE1001,Communicative English I,3,Develops English listening speaking reading and writing skills for basic communication,3-0-6
+ELE1002,Communicative English II,3,Expands English communication skills for daily and professional interactions,3-0-6
+ELE2000,Academic English,3,Improves academic English for reading writing listening and speaking in university contexts,2-3-6
+ELE2001,Advanced Academic English,3,Advances academic English for research analysis and presentation purposes,2-3-6
+GE2202,Ethics,3,Explores moral values ethics and professional responsibility,2-2-5
+CSX3001,Fundamentals of Computer Programming,3,Introduces fundamentals of computer programming logic and structure,3-0-6
+EG1003,Introduction to Internet of Things (IoTs),3,"Introduces fundamental concepts, components, and real-world applications of Internet of Things technologies.",3-0-6
+EG1004,Artificial Intelligence for Beginners,3,Provides a basic understanding of artificial intelligence principles and introductory AI applications.,3-0-6
+ITX1007,Data Analytics for Entrepreneurs,3,Covers essential data analytics techniques used for business decision-making and entrepreneurial insights.,2-2-5
+ITX2011,Mathematical Foundations for Informatics,3,Builds foundational mathematical skills required for informatics and computational problem-solving.,3-0-6
+ITX2009,Presentation and Data Visualization Techniques,3,Teaches effective presentation methods and data visualization techniques for clear information communication.,3-0-6
+ITX3002,Introduction to Information Technology,3,"Provides an overview of core information technology concepts, systems, and practical applications.",3-0-6
+ITX3003,Business Systems,3,Examines business systems and their roles in supporting organizational processes and decision-making.,3-0-6
+ITX3004,Information System Analysis and Design,3,"Introduces processes and techniques for analyzing, modeling, and designing effective information systems.",3-0-6
+IIX4509,Cybersecurity,3,"Covers fundamental principles of cybersecurity, including threats, vulnerabilities, and protection strategies.",3-0-6
+ITX3006,Database Management Systems,3,"Introduces concepts and techniques for designing, managing, and using relational database systems.",3-0-6
+ITX3009,Senior Project I,3,"Guides students through planning, research, and initial development phases of a senior-level project.",0-9-0
+ITX3010,Senior Project II,3,"Focuses on completing, refining, and presenting the final deliverables of a senior-level project.",0-9-0
+CE4310,Introduction to Financial Technology,3,"Introduces key principles, technologies, and applications of financial technology systems.",3-0-6
+ITX4202,Data Mining,3,Covers methods for discovering patterns and insights from large datasets using data mining techniques.,3-0-6
+CE4304,Programming for Data Analytics,3,Teaches programming skills and tools used for data analytics and data-driven problem-solving.,3-0-6
+ITX3007,Software Engineering,3,"Introduces principles, methodologies, and processes of developing high-quality software systems.",3-0-6
+ITX4508,Quantitative Research for Digital Business,3,Covers quantitative research methods applied to data-driven studies in digital business.,3-0-6
+ITX4112,Collaborative Applications for Informatics,3,"Introduces collaborative digital tools and applications for teamwork, productivity, and communication.",3-0-6
+CSX2009,Cloud Computing,3,Explores fundamental concepts and services of cloud computing and their practical applications.,3-0-6
+CSX3005,Computer Networks,3,"Provides an understanding of computer network principles, architectures, and communication protocols.",3-0-6
+CSX3002,Object-Oriented Concepts and Programming,3,Covers object-oriented programming concepts and problem-solving using object-oriented design.,3-0-6
+ITX3008,IT Project Management,3,"Introduces principles and practices for planning, organizing, and managing information technology projects.",3-0-6
+ITX4103,Requirement Engineering,3,"Covers techniques and processes for identifying, analyzing, and documenting software requirements.",3-0-6
+ITX4104,Software Testing,3,"Introduces methods and tools for testing software quality, performance, and reliability.",3-0-6
+ITX4106,Enterprise Architectures,3,Introduces principles and frameworks for designing and managing enterprise architectures.,3-0-6
+ITX4110,Enterprise System Integration,3,Covers techniques and technologies used to integrate diverse enterprise systems and applications.,3-0-6
+ITX4111,Software Architectures,3,Explores architectural patterns and design principles for developing large-scale software systems.,3-0-6
+ITX4113,Extended Reality Design and Development,3,Introduces concepts and tools for designing and developing extended reality experiences.,3-0-6
+ITX4503,Information System Security,3,Covers essential practices for securing information systems and protecting digital assets.,3-0-6
+CE3003,Mobile Applications Development,3,Teaches principles and techniques for developing mobile applications across common platforms.,3-0-6
+ITX2007,Data Science,3,"Introduces data science concepts, methods, and tools for extracting insights from data.",3-0-6
+ITX4205,Big Data Analytics,3,Covers analytical techniques and technologies used to process and interpret big data.,3-0-6
+ITX4208,Decision Support and Recommender System,3,Explores models and methods used in decision support systems and recommender technologies.,3-0-6
+ITX4211,Data Engineering,3,"Introduces fundamental concepts, tools, and workflows used in data engineering.",3-0-6
+ITX4212,Predictive Analytics,3,Covers techniques for building predictive models and forecasting data-driven outcomes.,3-0-6
+ITX4213,Artificial Intelligence for Business,3,Applies artificial intelligence techniques to business decision-making and optimization.,3-0-6
+ITX4214,Data Science Project Management,3,Introduces methodologies for planning and managing data science projects.,3-0-6
+ITX4215,Business Insights and Visualization,3,Covers methods for extracting business insights and presenting them using visualization tools.,3-0-6
+ITX4216,Computer Vision,3,"Introduces concepts, techniques, and applications of computer vision.",3-0-6
+ITX4217,Natural Language Processing and Social Interactions,3,Explores natural language processing methods and their use in analyzing social interactions.,3-0-6
+ITX4218,AI Chatbot,3,Covers principles and tools for designing and building AI-driven chatbot systems.,3-0-6
+ITX4219,Generative AI for Entrepreneurs,3,Introduces generative AI concepts and applications for entrepreneurial innovation.,3-0-6
+ITX4510,Data Policies and Governance,3,"Covers policies, standards, and governance practices for managing data responsibly.",3-0-6
+BBA1012,Entrepreneurial Marketing,3,Introduces marketing strategies tailored for entrepreneurial ventures.,3-0-6
+ITX4403,Manufacturing Management System,3,Covers principles and systems used in modern manufacturing management.,3-0-6
+ITX4404,Supply Chain Management System,3,Explores concepts and technologies used in supply chain management systems.,3-0-6
+ITX4511,Internet of Behaviors,3,Introduces the study of behavioral data and its applications in digital systems.,3-0-6
+ITX4512,Marketing Automation Systems,3,Covers tools and techniques for automating marketing processes and workflows.,3-0-6
+ITX4513,Social Media Analytics,3,Introduces methods for analyzing social media data to generate insights.,3-0-6
+ITX4518,Blockchain and Digital Currencies,3,Covers foundational concepts and applications of blockchain and digital currencies.,3-0-6
+ITX4502,Tech Startup,3,Explores processes and strategies for launching and managing technology startups.,3-0-6
+ITX4504,Digital Marketing,3,Covers strategies and tools used in modern digital marketing practices.,3-0-6
+ITX4505,Digital Transformation,3,"Introduces concepts, frameworks, and technologies driving digital transformation.",3-0-6
+ITX4521,Applied Informatics Industrial Training I,3,Provides supervised industry training to apply applied informatics concepts in real-world environments.,3-0-6
+ITX4521,Applied Informatics Industrial Training II,3,Continues supervised industry training with increased responsibility and project involvement.,3-0-6
+ITX4521,Applied Informatics Industrial Training III,3,Advances industry training with applied informatics tasks in professional settings.,3-0-6
+ITX4521,Applied Informatics Industrial Training IV,3,Completes extended industry training focused on advanced practice and workplace integration.,3-0-6
+ITX4531,Cybersecurity Risk Management and Compliance,3,Covers techniques for assessing cybersecurity risks and ensuring regulatory compliance.,3-0-6
+ITX4532,Ethical Hacking and Penetration Testing,3,Introduces methods for ethical hacking and penetration testing of information systems.,3-0-6
+ITX4533,Advanced Topics in Cybersecurity,3,"Explores advanced concepts, tools, and challenges in modern cybersecurity.",3-0-6
+ITX4534,Special Problems in Cybersecurity,3,Allows students to conduct specialized investigations on selected cybersecurity problems.,3-0-6
+AD3280,"Inspiration, Lifestyles and Popular Culture",3,"Explores how inspiration, lifestyles, and popular culture shape creative thinking.",2-2-5
+ADX1101,Art and Design Appreciation,3,Introduces fundamental concepts and perspectives in art and design appreciation.,0-6-3
+ADX1102,Design Culture Exposure,2,Provides exposure to design culture through real-world observation and analysis.,0-4-4
+ADX1140,Journey for Urban Art and Culture Exploration,3,Guides students in exploring urban art and cultural experiences.,3-0-6
+ADX1240,Artist Studio (Painting and Rendering),3,Develops painting and rendering skills through studio-based artistic practice.,1-4-4
+ADX1303,Design Communication,3,Introduces principles and tools for effective visual and design communication.,2-2-5
+ADX1304,Design Fundamental,3,Covers foundational elements and techniques in visual design.,2-2-5
+BBA1010,Design Thinking in Business,3,Applies design thinking principles to solve problems in business contexts.,3-0-6
+BBA1012,Entrepreneurial Marketing,3,Teaches marketing concepts and strategies tailored for entrepreneurial ventures.,3-0-6
+BBA1013,Entrepreneurial Finance,3,Introduces financial principles and tools essential for entrepreneurial decision-making.,3-0-6
+BBA1014,The Art of Data for Business,3,Explores how data can be used creatively for business insight and innovation.,3-0-6
+BBA1020,Design Thinking Essentials,2,Covers essential principles and practices of design thinking.,2-0-4
+BBA1021,Design Thinking Workshop,1,Provides hands-on experience applying design thinking in practical workshops.,1-0-2
+BBA1022,Building CEO and Leadership Essentials,2,Introduces leadership and executive skill development for aspiring business leaders.,2-0-4
+BBA1023,Building CEO and Leadership Workshop,1,Provides workshop-based practice in leadership and CEO essentials.,1-0-2
+BBA1024,Entrepreneurial Marketing Essentials,2,Introduces fundamental concepts of marketing for entrepreneurs.,2-0-4
+BBA1025,Entrepreneurial Marketing Workshop,1,Provides workshop practice applying entrepreneurial marketing techniques.,1-0-2
+BBA1026,Entrepreneurial Finance Essentials,2,Covers essential concepts in entrepreneurial finance.,2-0-4
+BBA1027,Entrepreneurial Finance Workshop,1,Provides workshop practice applying entrepreneurial financial decision-making.,1-0-2
+BBA1028,The Art of Data Essentials,2,Introduces essential approaches for using data effectively in business contexts.,2-0-4
+BBA1029,The Art of Data Workshop,1,Provides workshop-based application of data analysis for business insights.,0-1-1
+CA1110,Art and Beauty of Living,3,Explores aesthetics and mindful living through art and everyday experiences.,3-0-6
+CA1201,Creative Photography,3,Introduces principles and techniques of creative photography.,3-0-6
+CA1202,Computer Graphic for Presentation Design for Pitching,3,Covers computer graphic tools for designing effective presentation materials and pitching visuals.,3-0-6
+EG1001,Digital Literacy,3,Develops essential digital skills for communicating and working in modern environments.,3-0-6
+EG1002,Application Design for Everyone,3,Introduces principles and methods for designing user-centered applications.,3-0-6
+EG1003,Introduction to Internet of Things (IoTs),3,"Introduces key concepts, components, and applications of Internet of Things technologies.",3-0-6
+EG1004,Artificial Intelligence for Beginners,3,Provides a basic understanding of artificial intelligence principles and introductory applications.,3-0-6
+EG1005,3D Modelling and 3D Printing Technology,3,Covers 3D modeling concepts and techniques used in 3D printing technologies.,3-0-6
+FT1003,Food Factory Explore Trip,3,Provides experiential learning through visits to food factory environments.,3-0-6
+FT1004A,Food-Agri-Bio Tech Trend Update (Part A),2,"Introduces emerging trends in food, agriculture, and biotechnology (Part A).",2-0-4
+FT1004B,Food-Agri-Bio Tech Trend Update (Part B),1,"Continues exploring advanced trends in food, agriculture, and biotechnology (Part B).",1-0-2
+FT1005,Sustainability and Circular Living,3,Covers principles and practices that support sustainable living and circular economy concepts.,3-0-6
+FT2003A,Foods Changing the World (Part A),2,"Explores global food innovations and their influence on health, society, and the environment (Part A).",2-0-4
+FT2003B,Foods Changing the World (Part B),1,Continues examining transformative food concepts that impact communities and global systems (Part B).,1-0-2
+FT2004,Drinkology: The Art of Drinking,3,"Explores the cultural, artistic, and sensory elements behind beverages and the art of drinking.",3-0-6
+FT2005,Food Zodiac,3,Introduces personality insights and cultural interpretations based on food-themed zodiac concepts.,3-0-6
+GE1104,Thai Historical Perspectives,3,"Provides an overview of Thailand’s historical events, cultural heritage, and societal development.",3-0-6
+GE1107,Perspectives in Politics and Economy,3,Introduces key political and economic perspectives that shape national and global systems.,3-0-6
+GE1204,Physical Education,1,"Promotes physical fitness, movement skills, and overall wellness through structured activities.",0-2-1
+GE1205,ASEAN Ways,3,"Introduces cultural, social, and political aspects that define ASEAN identity and regional cooperation.",3-0-6
+GE1209,Psychology Application in Daily Life,3,"Applies basic psychology principles to everyday situations, decision-making, and behavior.",3-0-6
+GE1302,Ecology and Sustainability,3,Explores ecological concepts and sustainable practices for environmental responsibility.,3-0-6
+GE1403,Thai Language for Professional Communication,3,Develops professional-level Thai language skills for workplace communication.,3-0-6
+GE1409,Thai Language for Intercultural Communication,3,Enhances Thai language abilities for intercultural interactions and cultural understanding.,3-0-6
+GE1413,Introduction to Korean Language and K-pop Culture,3,Teaches basic Korean language skills along with cultural insights from K-pop.,3-0-6
+GE1414,Introduction to Spanish Language and Culture,3,Introduces basic Spanish language skills and cultural perspectives from Spanish-speaking countries.,3-0-6
+GE1415,Storytelling and Presentation Skills in English,3,Develops English storytelling and presentation abilities for clear and confident communication.,3-0-6
+GE2102,Human Heritage and Globalization,3,Explores global cultural heritage and its connections to modern society and globalization trends.,3-0-6
+GE2103,Art of Reasoning,3,Teaches logical reasoning and critical thinking skills for effective problem-solving.,3-0-6
+GE2207,"Sport, Health and Wellness Development",3,"Promotes lifelong wellness through physical activity, health awareness, and fitness practices.",3-0-6
+GE2209,The Power of Personality in Leadership,3,"Explores how personality traits influence leadership style, communication, and effectiveness.",3-0-6
+GE2210,Love and Art of Living,3,"Examines concepts of love, relationships, and meaningful living from cultural and personal perspectives.",3-0-6
+GE2212,Exotic Thai Food and Crafts,3,Introduces unique Thai foods and traditional crafting techniques.,3-0-6
+GE2213,Thai Market Vendor Exposure,3,Provides hands-on exposure to Thai market environments and vendor culture.,3-0-6
+GE2304,Lifestyles and Sustainability in Dynamic World,3,Explores changing lifestyles and sustainability challenges in a rapidly evolving world.,3-0-6
+GE3401,Public Speaking in Thai,3,Develops effective Thai public speaking and communication skills.,3-0-6
+ITX2004,UI/UX Design and Prototyping,3,"Introduces principles, tools, and processes for UI/UX design and digital prototyping.",3-0-6
+ITX2005,Design Thinking,3,Covers essential concepts and frameworks of design thinking for creative problem-solving.,3-0-6
+ITX3002,Introduction to Information Technology,3,Provides foundational knowledge of core information technology concepts and applications.,3-0-6
+ITX4502,Tech Startup,3,"Introduces strategies, methods, and tools for building and scaling technology startups.",3-0-6
+LLB1501,Business Law,3,Covers essential concepts and legal principles that govern business operations.,3-0-6
+LLB1502,Fundamentals of Tax Law,3,Introduces foundational principles and regulations related to tax law.,3-0-6
+LLB4540,International Business Law and Start-Up Business,3,Explores international business law with focus on legal considerations for startups.,3-0-6
+LLB4806,Business and Human Rights,3,Examines the intersection of business operations and human rights responsibilities.,3-0-6
+MB2531,Music Business,3,"Introduces the structure, economics, and operations of the modern music business.",3-0-6
+MU1002,Pop Music Appreciation,3,Explores cultural and artistic elements of popular music across various genres.,3-0-6
+MU1231,History and Literature of Music,3,Introduces historical developments and literary influences that shape music traditions.,3-0-6
+MU3602,Music Therapy,3,Covers principles and applications of music therapy for health and well-being.,3-0-6
+MU4223,Music in Human Life,3,"Explores the role of music in human culture, behavior, and everyday life.",3-0-6
+NGE0110,First Aid and Basic Life Support,3,Teaches essential first aid skills and basic life support procedures.,3-0-6
+NGE0111,Innovative Media and Project Influencing Health Risk Behavior,3,Covers media strategies and creative approaches for influencing health-related behaviors.,3-0-6

@@ -1,53 +1,67 @@
 <?php
 
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-// use App\Http\Controllers\PublicFacultyController;
-// use App\Http\Controllers\PublicDepartmentController;
-// use App\Http\Controllers\PublicCurriculumController;
-// use App\Http\Controllers\PublicConcentrationController;
 // Auth
 use App\Http\Controllers\API\Auth\AuthController;
 
+// Public endpoints
+use App\Http\Controllers\PublicFacultyController;
+use App\Http\Controllers\API\Admin\UserController;
+use App\Http\Controllers\PublicCurriculumController;
+use App\Http\Controllers\PublicDepartmentController;
+
 // Admin
-use App\Http\Controllers\FacultyController;
-use App\Http\Controllers\DepartmentController;
-use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\Api\DashboardStatsController;
+use App\Http\Controllers\API\Admin\FacultyController;
+use App\Http\Controllers\API\SystemSettingController;
+use App\Http\Controllers\PublicConcentrationController;
+use App\Http\Controllers\API\Admin\DepartmentController;
 
 // Chairperson
-use App\Http\Controllers\CurriculaController;
-use App\Http\Controllers\CurriculumController;
-use App\Http\Controllers\CourseController;
-use App\Http\Controllers\CourseTypeController;
-use App\Http\Controllers\ConcentrationCourseController;
-use App\Http\Controllers\AvailableCourseController;
+use App\Http\Controllers\API\Download\DownloadController;
+use App\Http\Controllers\API\Chairperson\CourseController;
+use App\Http\Controllers\API\Admin\DashboardStatsController;
 use App\Http\Controllers\API\Chairperson\BlacklistController;
+use App\Http\Controllers\API\Chairperson\CurriculaController;
+use App\Http\Controllers\API\Chairperson\CourseTypeController;
+use App\Http\Controllers\API\Chairperson\CurriculumController;
+use App\Http\Controllers\API\Student\CompletedCourseController;
+use App\Http\Controllers\API\Chairperson\ElectiveRuleController;
+use App\Http\Controllers\API\Chairperson\AvailableCourseController;
 
 // Student
-use App\Http\Controllers\CompletedCourseController;
+use App\Http\Controllers\API\Chairperson\FacultyLabelController;
 
 // System Setting
-use App\Http\Controllers\API\SystemSettingController;
 
 // Download
-use App\Http\Controllers\DownloadController;
+use App\Http\Controllers\API\Chairperson\ConcentrationCourseController;
+use App\Http\Controllers\API\Chairperson\CurriculumBlacklistController;
 
-// Route::get('/public-faculties', [PublicFacultyController::class, 'index']);
-// Route::get('/public-departments', [PublicDepartmentController::class, 'index']);
-// Route::get('/public-curricula', [PublicCurriculumController::class, 'index']);
-// Route::get('/public-curricula/{id}', [PublicCurriculumController::class, 'show']);
-// Route::get('/public-concentrations', [PublicConcentrationController::class, 'index']);
-// // Authentication routes
+// Public APIs
+Route::get('/public-faculties', [PublicFacultyController::class, 'index']);
+Route::get('/public-departments', [PublicDepartmentController::class, 'index']);
+Route::get('/public-curricula', [PublicCurriculumController::class, 'index']);
+Route::get('/public-curricula/{id}', [PublicCurriculumController::class, 'show']);
+Route::get('/public-concentrations', [PublicConcentrationController::class, 'index']);
+Route::get('/public-curricula/{id}/blacklists', [PublicCurriculumController::class, 'blacklists']);
+
+// Available Courses
+Route::get('/available-courses', [AvailableCourseController::class, 'index']);
+
+// Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
 
-// Example public endpoints (uncomment if implemented)
-// Route::get('public-departments', [DepartmentController::class, 'publicIndex']);
-// Route::get('public-curricula', [CurriculaController::class, 'publicIndex']);
-
 Route::middleware(['auth:sanctum'])->group(function () {
+    
+    // Concentrations
+    Route::get('/concentrations', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'index']);
+    Route::post('/concentrations', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'store']);
+    Route::get('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'show']);
+    Route::put('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'update']);  
+    Route::delete('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'destroy']);
+    
     // Auth routes
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
@@ -82,20 +96,68 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/curricula/{id}', [CurriculaController::class, 'show']);
     Route::put('/curricula/{id}', [CurriculaController::class, 'update']);
     Route::delete('/curricula/{id}', [CurriculaController::class, 'destroy']);
+    
+    // Curriculum sub-resources
+    Route::get('/curricula/{id}/elective-rules', [CurriculaController::class, 'electiveRules']);
+    Route::get('/curricula/{id}/concentrations', [CurriculaController::class, 'concentrations']);
+    Route::get('/curricula/{id}/blacklists', [CurriculaController::class, 'blacklists']);
+
+   Route::prefix('courses')->middleware('auth:sanctum')->group(function () {
+
+    // =========================
+    // BASIC CRUD
+    // =========================
+    Route::get('/', [CourseController::class, 'index']);
+    Route::post('/', [CourseController::class, 'store']);
+
+    // =========================
+    // SEARCH & BULK
+    // =========================
+    Route::get('/search', [CourseController::class, 'search']);
+    Route::post('/bulk-create', [CourseController::class, 'bulkCreate']);
+
+    // =========================
+    // COURSE-SPECIFIC
+    // =========================
+    Route::get('/{course}', [CourseController::class, 'show']);
+    Route::put('/{course}', [CourseController::class, 'update']);
+    Route::delete('/{course}', [CourseController::class, 'destroy']);
+
+    // =========================
+    // CONSTRAINTS
+    // =========================
+    Route::get('/{course}/constraints', [CourseController::class, 'constraints']);
+
+    // =========================
+    // PREREQUISITES
+    // =========================
+    Route::get('/{course}/prerequisites', [CourseController::class, 'prerequisites']);
+    Route::post('/{course}/prerequisites', [CourseController::class, 'addPrerequisite']);
+    Route::delete('/{course}/prerequisites/{relation}', [CourseController::class, 'removePrerequisite']);
+
+    // =========================
+    // COREQUISITES
+    // =========================
+    Route::get('/{course}/corequisites', [CourseController::class, 'corequisites']);
+    Route::post('/{course}/corequisites', [CourseController::class, 'addCorequisite']);
+    Route::delete('/{course}/corequisites/{relation}', [CourseController::class, 'removeCorequisite']);
+});
 
 
-    // Courses
-    Route::get('/courses', [CourseController::class, 'index']);
-    Route::post('/courses', [CourseController::class, 'store']);
-    Route::get('/courses/{id}', [CourseController::class, 'show']);
-    Route::put('/courses/{id}', [CourseController::class, 'update']);
-    Route::delete('/courses/{id}', [CourseController::class, 'destroy']);
+    //course search
+    Route::get('/courses/search', [CourseController::class, 'search']);
 
     // Course Types
-    Route::get('/course-types', [CourseTypeController::class, 'index']);
-    Route::post('/course-types', [CourseTypeController::class, 'store']);
-    Route::put('/course-types/{id}', [CourseTypeController::class, 'update']);
-    Route::delete('/course-types/{id}', [CourseTypeController::class, 'destroy']);
+    Route::prefix('course-types')->group(function () {
+        Route::get('/', [CourseTypeController::class, 'index']);
+        Route::post('/', [CourseTypeController::class, 'store']);
+
+        Route::post('/assign', [CourseTypeController::class, 'bulkAssign']);
+
+        Route::get('/{id}', [CourseTypeController::class, 'show']);
+        Route::put('/{id}', [CourseTypeController::class, 'update']);
+        Route::delete('/{id}', [CourseTypeController::class, 'destroy']);
+    });
 
     // Concentration Courses
     Route::get('/concentration-courses', [ConcentrationCourseController::class, 'index']);
@@ -103,13 +165,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/concentration-courses/{id}', [ConcentrationCourseController::class, 'show']);
     Route::put('/concentration-courses/{id}', [ConcentrationCourseController::class, 'update']);
     Route::delete('/concentration-courses/{id}', [ConcentrationCourseController::class, 'destroy']);
-    // If you have ConcentrationController, add RESTful endpoints for /concentrations
-    // use App\Http\Controllers\API\Chairperson\ConcentrationController;
-    // Route::get('/concentrations', [ConcentrationController::class, 'index']);
-    // Route::get('/concentrations/{id}', [ConcentrationController::class, 'show']);
-
-    // Available Courses
-    Route::get('/available-courses', [AvailableCourseController::class, 'index']);
 
     // Blacklists
     Route::get('/blacklists', [BlacklistController::class, 'index']);
@@ -117,6 +172,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/blacklists/{id}', [BlacklistController::class, 'show']);
     Route::put('/blacklists/{id}', [BlacklistController::class, 'update']);
     Route::delete('/blacklists/{id}', [BlacklistController::class, 'destroy']);
+    Route::get('/blacklists/courses/search', [BlacklistController::class, 'searchCourses']);
+
+    // Curriculum Blacklists
+    Route::get('/curricula/{id}/blacklists', [CurriculumBlacklistController::class, 'index']);
+    Route::post('/curricula/{id}/blacklists', [CurriculumBlacklistController::class, 'store']);
+    Route::delete('/curricula/{id}/blacklists/{blacklistId}', [CurriculumBlacklistController::class, 'destroy']);
+
+
+    // Faculty Label (Concentration Label)
+    Route::get('/faculty/concentration-label', [FacultyLabelController::class, 'getConcentrationLabel']);
+    Route::put('/faculty/concentration-label', [FacultyLabelController::class, 'updateConcentrationLabel']);
 
     // Completed Courses (Student)
     Route::get('/completed-courses', [CompletedCourseController::class, 'index']);
@@ -124,7 +190,28 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // System Setting
     Route::get('/system-settings', [SystemSettingController::class, 'index']);
 
+    // Curriculum (CurriculumController) - separate from Curricula
+    Route::post('/curriculum/upload', [CurriculumController::class, 'upload']);
+    Route::get('/curriculum/bscs2022', [CurriculumController::class, 'bscs2022']);
+    Route::get('/curriculum/template', [CurriculumController::class, 'template']);
+    Route::get('/curriculum/{id}', [CurriculumController::class, 'show']);
+    Route::put('/curriculum/{id}', [CurriculumController::class, 'update']);
+    Route::delete('/curriculum/{id}', [CurriculumController::class, 'destroy']);
+    Route::get('/curriculum/{id}/courses', [CurriculumController::class, 'courses']);
+    Route::post('/curriculum/{id}/courses', [CurriculumController::class, 'addCourse']);
+    Route::delete('/curriculum/{id}/courses/{courseId}', [CurriculumController::class, 'removeCourse']);
+
+    // Elective Rules
+    Route::prefix('curricula/{curriculum}')->group(function () {
+        Route::get('/elective-rules', [ElectiveRuleController::class, 'index']);
+        Route::post('/elective-rules', [ElectiveRuleController::class, 'store']);
+        Route::put('/elective-rules/settings', [ElectiveRuleController::class, 'updateSettings']);
+        Route::put('/elective-rules/{rule}', [ElectiveRuleController::class, 'update']);
+        Route::delete('/elective-rules/{rule}', [ElectiveRuleController::class, 'destroy']);
+    });
+
     // Download
     Route::get('/download/sample-xlsx', [DownloadController::class, 'sampleXlsx']);
     Route::get('/download/sample-csv', [DownloadController::class, 'sampleCsv']);
+
 });

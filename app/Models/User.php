@@ -35,7 +35,6 @@ class User extends Authenticatable
         'reset_token',
     ];
     protected $casts = [
-        'password' => 'hashed',
         'reset_token_expiry' => 'datetime',
         'gpa' => 'float',
     ];

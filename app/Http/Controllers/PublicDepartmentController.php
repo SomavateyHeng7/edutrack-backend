@@ -18,10 +18,18 @@ class PublicDepartmentController extends Controller
             ])->orderBy('name', 'asc');
 
             if ($facultyId) {
-                $query->where('facultyId', $facultyId);
+                $query->where('faculty_id', $facultyId);
             }
 
-            $departments = $query->get();
+            $departments = $query->get()->map(function ($dept) {
+                return [
+                    'id' => $dept->id,
+                    'name' => $dept->name,
+                    'code' => $dept->code,
+                    'facultyId' => $dept->faculty_id, // camelCase for frontend compatibility
+                    'faculty' => $dept->faculty,
+                ];
+            });
 
             return response()->json(['departments' => $departments]);
         } catch (\Exception $error) {

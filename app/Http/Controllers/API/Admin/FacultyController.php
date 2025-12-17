@@ -1,6 +1,7 @@
 <?php
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\API\Admin;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Faculty;
@@ -18,7 +19,19 @@ class FacultyController extends Controller
         // Fetch faculties with counts
         $faculties = Faculty::withCount(['departments', 'users', 'curricula'])
             ->orderBy('name', 'asc')
-            ->get();
+            ->get()
+            ->map(function ($faculty) {
+                return [
+                    'id' => $faculty->id,
+                    'name' => $faculty->name,
+                    'code' => $faculty->code,
+                    'usersCount' => $faculty->users_count,
+                    'departmentsCount' => $faculty->departments_count,
+                    'curriculaCount' => $faculty->curricula_count,
+                    'createdAt' => $faculty->created_at,
+                    'updatedAt' => $faculty->updated_at,
+                ];
+            });
 
         return response()->json(['faculties' => $faculties]);
     }
