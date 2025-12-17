@@ -1,21 +1,15 @@
-// Public endpoints
-use App\Http\Controllers\PublicFacultyController;
-use App\Http\Controllers\PublicDepartmentController;
-use App\Http\Controllers\PublicCurriculumController;
-use App\Http\Controllers\PublicConcentrationController;
-// Public APIs
-Route::get('/public-faculties', [PublicFacultyController::class, 'index']);
-Route::get('/public-departments', [PublicDepartmentController::class, 'index']);
-Route::get('/public-curricula', [PublicCurriculumController::class, 'index']);
-Route::get('/public-curricula/{id}', [PublicCurriculumController::class, 'show']);
-Route::get('/public-concentrations', [PublicConcentrationController::class, 'index']);
 <?php
+
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+// use App\Http\Controllers\PublicFacultyController;
+// use App\Http\Controllers\PublicDepartmentController;
+// use App\Http\Controllers\PublicCurriculumController;
+// use App\Http\Controllers\PublicConcentrationController;
 // Auth
-use App\Http\Controllers\AuthController;
+use App\Http\Controllers\API\Auth\AuthController;
 
 // Admin
 use App\Http\Controllers\FacultyController;
@@ -41,7 +35,12 @@ use App\Http\Controllers\API\SystemSettingController;
 // Download
 use App\Http\Controllers\DownloadController;
 
-// Authentication routes
+// Route::get('/public-faculties', [PublicFacultyController::class, 'index']);
+// Route::get('/public-departments', [PublicDepartmentController::class, 'index']);
+// Route::get('/public-curricula', [PublicCurriculumController::class, 'index']);
+// Route::get('/public-curricula/{id}', [PublicCurriculumController::class, 'show']);
+// Route::get('/public-concentrations', [PublicConcentrationController::class, 'index']);
+// // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
 
 // Example public endpoints (uncomment if implemented)
@@ -56,7 +55,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
     // Dashboard stats
-    Route::get('/dashboard-stats', [DashboardStatsController::class, 'index']);
+    Route::get('/dashboard-stats', [DashboardStatsController::class, 'getStats']);
 
     // Faculties
     Route::get('/faculties', [FacultyController::class, 'index']);
