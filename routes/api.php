@@ -52,6 +52,13 @@ Route::get('/available-courses', [AvailableCourseController::class, 'index']);
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/user', function (Request $request) {
+    $user = $request->user();
+    if ($user) {
+        return response()->json($user->load(['faculty', 'department']));
+    }
+    return response()->json(null);
+    });
 
 Route::middleware(['auth:sanctum'])->group(function () {
     
@@ -64,9 +71,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     
     // Auth routes
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/user', function (Request $request) {
-        return response()->json($request->user()->load(['faculty', 'department']));
-    });
+    
 
     // Dashboard stats
     Route::get('/dashboard-stats', [DashboardStatsController::class, 'getStats']);
