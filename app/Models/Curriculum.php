@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Curriculum extends Model
 {
@@ -62,6 +63,19 @@ class Curriculum extends Model
     public function curriculumBlacklists(): HasMany
     {
         return $this->hasMany(CurriculumBlacklist::class);
+    }
+
+    // Get all blacklists assigned to this curriculum through the pivot table
+    public function blacklists()
+    {
+        return $this->hasManyThrough(
+            Blacklist::class,
+            CurriculumBlacklist::class,
+            'curriculum_id',  // Foreign key on curriculum_blacklists table
+            'id',             // Foreign key on blacklists table
+            'id',             // Local key on curricula table
+            'blacklist_id'    // Local key on curriculum_blacklists table
+        );
     }
 
     public function curriculumConstraints(): HasMany
