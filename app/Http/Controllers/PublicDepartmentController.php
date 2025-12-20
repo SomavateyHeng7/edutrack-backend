@@ -10,7 +10,7 @@ class PublicDepartmentController extends Controller
     public function index(Request $request)
     {
         try {
-            $facultyId = $request->query('facultyId');
+            $facultyId = $request->query('faculty_id');
 
             // Build query based on facultyId filter
             $query = Department::with([

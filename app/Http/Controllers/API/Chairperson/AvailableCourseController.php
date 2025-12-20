@@ -13,8 +13,8 @@ class AvailableCourseController extends Controller
     // GET /api/available-courses?curriculumId=xxx&departmentId=yyy
     public function index(Request $request)
     {
-        $curriculumId = $request->query('curriculumId');
-        $departmentId = $request->query('departmentId');
+        $curriculumId = $request->query('curriculum_id');
+        $departmentId = $request->query('department_id');
 
         if (!$curriculumId || !$departmentId) {
             return response()->json([
@@ -27,7 +27,7 @@ class AvailableCourseController extends Controller
             'curriculumCourses.course.prerequisites.prerequisite',
             'curriculumCourses.course.corequisites.corequisite',
             'curriculumCourses.course.departmentCourseTypes' => function ($q) use ($departmentId) {
-                $q->where('departmentId', $departmentId)->with('courseType');
+                $q->where('department_id', $departmentId)->with('courseType');
             },
             'curriculumCourses.course.blacklistCourses.blacklist.courses.course'
         ])->find($curriculumId);
@@ -93,11 +93,11 @@ class AvailableCourseController extends Controller
             'prerequisites.prerequisite',
             'corequisites.corequisite',
             'departmentCourseTypes' => function ($q) use ($departmentId) {
-                $q->where('departmentId', $departmentId)->with('courseType');
+                $q->where('department_id', $departmentId)->with('courseType');
             },
             'blacklistCourses.blacklist.courses.course'
         ])->whereHas('departmentCourseTypes', function ($q) use ($departmentId) {
-            $q->where('departmentId', $departmentId);
+            $q->where('department_id', $departmentId);
         })->get();
 
         $additionalCourses = [];

@@ -10,8 +10,8 @@ class PublicConcentrationController extends Controller
     // GET /api/public-concentrations
     public function index(Request $request)
     {
-        $curriculumId = $request->query('curriculumId');
-        $departmentId = $request->query('departmentId');
+        $curriculumId = $request->query('curriculum_id');
+        $departmentId = $request->query('department_id');
 
         if (!$curriculumId || !$departmentId) {
             return response()->json([
