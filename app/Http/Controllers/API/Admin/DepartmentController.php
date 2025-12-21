@@ -62,7 +62,7 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'name'       => 'required|string|max:255',
             'code'       => 'required|string|max:50',
-            'facultyId'  => 'required|integer',
+            'facultyId'  => 'required|string',
         ]);
 
         // Validate faculty
@@ -109,7 +109,7 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'name'       => 'required|string|max:255',
             'code'       => 'required|string|max:50',
-            'facultyId'  => 'required|integer',
+            'facultyId'  => 'required|string',
         ]);
 
         $department = Department::find($id);

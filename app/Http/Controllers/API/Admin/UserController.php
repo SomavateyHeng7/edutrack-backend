@@ -129,4 +129,56 @@ class UserController extends Controller
             return response()->json(['error' => 'Error creating user'], 500);
         }
     }
+
+    public function update(Request $request, $userId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'SUPER_ADMIN') {
+                return response()->json(['error' => 'Unauthorized - Super Admin access required'], 401);
+            }
+
+            $data = $request->all();
+            $userToUpdate = User::find($userId);
+            if (!$userToUpdate) {
+                return response()->json(['error' => 'User not found'], 404);
+            }
+
+            // Update fields if provided
+            foreach (['name', 'email', 'role', 'facultyId', 'departmentId'] as $field) {
+                if (isset($data[$field])) {
+                    if ($field === 'facultyId') {
+                        $userToUpdate->faculty_id = $data[$field];
+                    } elseif ($field === 'departmentId') {
+                        $userToUpdate->department_id = $data[$field];
+                    } else {
+                        $userToUpdate->$field = $data[$field];
+                    }
+                }
+            }
+
+            // Update password if provided
+            if (!empty($data['password'])) {
+                $userToUpdate->password = Hash::make($data['password']);
+            }
+
+            $userToUpdate->save();
+
+            // Load faculty and department for response
+            $userToUpdate->load(['faculty:id,name', 'department:id,name']);
+
+            // Do not return password in response
+            $userData = $userToUpdate->toArray();
+            unset($userData['password']);
+
+            return response()->json([
+                'message' => 'User updated successfully',
+                'user' => $userData,
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('Error updating user: ' . $e->getMessage());
+            return response()->json(['error' => 'Error updating user'], 500);
+        }
+    }
 }
