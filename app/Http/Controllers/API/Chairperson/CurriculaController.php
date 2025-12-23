@@ -4,6 +4,8 @@ namespace App\Http\Controllers\API\Chairperson;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\{
     Curriculum,
     CurriculumCourse,
@@ -413,5 +415,121 @@ class CurriculaController extends Controller
         return response()->json([
             'settings' => $curriculum->elective_rule_settings ?? []
         ]);
+    }
+
+    // POST /api/curricula/{id}/duplicate
+    public function duplicate($id)
+    {
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Chairperson access required'], 403);
+        }
+
+        $originalCurriculum = Curriculum::with([
+            'curriculumCourses',
+            'curriculumConcentrations',
+            'curriculumBlacklists',
+            'curriculumConstraints',
+            'electiveRules'
+        ])->find($id);
+
+        if (!$originalCurriculum) {
+            return response()->json(['error' => 'Curriculum not found'], 404);
+        }
+
+        try {
+            // Use database transaction to ensure all data is duplicated or none
+            $newCurriculum = DB::transaction(function () use ($originalCurriculum, $user) {
+                // Create new curriculum with "Copy" suffix
+                // Append "-copy" to start_id and end_id to avoid unique constraint violation
+                $newCurriculum = Curriculum::create([
+                    'name' => $originalCurriculum->name . ' (Copy)',
+                    'year' => $originalCurriculum->year,
+                    'version' => $originalCurriculum->version,
+                    'description' => $originalCurriculum->description,
+                    'department_id' => $originalCurriculum->department_id,
+                    'faculty_id' => $originalCurriculum->faculty_id,
+                    'start_id' => $originalCurriculum->start_id . '-copy',
+                    'end_id' => $originalCurriculum->end_id . '-copy',
+                    'total_credits_required' => $originalCurriculum->total_credits_required,
+                    'is_active' => false, // Set as inactive by default
+                    'created_by_id' => $user->id,
+                ]);
+
+                // Duplicate curriculum courses
+                foreach ($originalCurriculum->curriculumCourses as $curriculumCourse) {
+                    CurriculumCourse::create([
+                        'curriculum_id' => $newCurriculum->id,
+                        'course_id' => $curriculumCourse->course_id,
+                        'position' => $curriculumCourse->position,
+                        'is_required' => $curriculumCourse->is_required,
+                        'override_requires_permission' => $curriculumCourse->override_requires_permission,
+                        'override_summer_only' => $curriculumCourse->override_summer_only,
+                        'override_requires_senior_standing' => $curriculumCourse->override_requires_senior_standing,
+                        'override_min_credit_threshold' => $curriculumCourse->override_min_credit_threshold,
+                    ]);
+                }
+
+                // Duplicate curriculum concentrations
+                foreach ($originalCurriculum->curriculumConcentrations as $concentration) {
+                    CurriculumConcentration::create([
+                        'curriculum_id' => $newCurriculum->id,
+                        'concentration_id' => $concentration->concentration_id,
+                    ]);
+                }
+
+                // Duplicate curriculum blacklists
+                foreach ($originalCurriculum->curriculumBlacklists as $blacklist) {
+                    CurriculumBlacklist::create([
+                        'curriculum_id' => $newCurriculum->id,
+                        'blacklist_id' => $blacklist->blacklist_id,
+                    ]);
+                }
+
+                // Duplicate curriculum constraints
+                foreach ($originalCurriculum->curriculumConstraints as $constraint) {
+                    CurriculumConstraint::create([
+                        'curriculum_id' => $newCurriculum->id,
+                        'constraint_id' => $constraint->constraint_id,
+                        'min_value' => $constraint->min_value,
+                        'max_value' => $constraint->max_value,
+                    ]);
+                }
+
+                // Duplicate elective rules
+                foreach ($originalCurriculum->electiveRules as $rule) {
+                    $newRule = $rule->replicate(); // Copy all attributes
+                    $newRule->curriculum_id = $newCurriculum->id; // Update to new curriculum
+                    $newRule->save();
+                }
+
+                return $newCurriculum;
+            });
+
+            // Load relationships for response
+            $newCurriculum->load([
+                'department:id,name,code',
+                'faculty:id,name,code'
+            ])->loadCount([
+                'curriculumCourses',
+                'curriculumConstraints',
+                'electiveRules'
+            ]);
+
+            return response()->json([
+                'message' => 'Curriculum duplicated successfully',
+                'curriculum' => $newCurriculum
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Error duplicating curriculum', [
+                'curriculum_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'error' => 'Error duplicating curriculum: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -10,11 +10,11 @@ use App\Models\{
     Curriculum,
     CurriculumCourse,
     Course,
-    Prerequisite,
-    Corequisite,
-    Concentration,
-    Blacklist,
-    Constraint,
+    CurriculumCoursePrerequisite,
+    CurriculumCourseCorequisite,
+    CurriculumConcentration,
+    CurriculumBlacklist,
+    CurriculumConstraint,
     ElectiveRule,
     AuditLog,
     User
@@ -224,7 +224,7 @@ class CurriculumController extends Controller
     // GET /api/curriculum/{id}/courses/{courseId}/prerequisites
     public function prerequisites($id, $courseId)
     {
-        $prerequisites = Prerequisite::where('curriculum_id', $id)
+        $prerequisites = CurriculumCoursePrerequisite::where('curriculum_id', $id)
             ->where('course_id', $courseId)
             ->with('prerequisiteCourse')
             ->get();
@@ -239,7 +239,7 @@ class CurriculumController extends Controller
             'prerequisiteCourseId' => 'required|exists:courses,id',
         ]);
 
-        $prerequisite = Prerequisite::create([
+        $prerequisite = CurriculumCoursePrerequisite::create([
             'curriculum_id' => $id,
             'course_id' => $courseId,
             'prerequisite_course_id' => $validated['prerequisiteCourseId'],
@@ -251,7 +251,7 @@ class CurriculumController extends Controller
     // DELETE /api/curriculum/{id}/courses/{courseId}/prerequisites/{prerequisiteId}
     public function removePrerequisite($id, $courseId, $prerequisiteId)
     {
-        $prerequisite = Prerequisite::where('curriculum_id', $id)
+        $prerequisite = CurriculumCoursePrerequisite::where('curriculum_id', $id)
             ->where('course_id', $courseId)
             ->where('id', $prerequisiteId)
             ->first();
@@ -267,7 +267,7 @@ class CurriculumController extends Controller
     // GET /api/curriculum/{id}/courses/{courseId}/corequisites
     public function corequisites($id, $courseId)
     {
-        $corequisites = Corequisite::where('curriculum_id', $id)
+        $corequisites = CurriculumCourseCorequisite::where('curriculum_id', $id)
             ->where('course_id', $courseId)
             ->with('corequisiteCourse')
             ->get();
@@ -282,7 +282,7 @@ class CurriculumController extends Controller
             'corequisiteCourseId' => 'required|exists:courses,id',
         ]);
 
-        $corequisite = Corequisite::create([
+        $corequisite = CurriculumCourseCorequisite::create([
             'curriculum_id' => $id,
             'course_id' => $courseId,
             'corequisite_course_id' => $validated['corequisiteCourseId'],
@@ -294,7 +294,7 @@ class CurriculumController extends Controller
     // DELETE /api/curriculum/{id}/courses/{courseId}/corequisites/{corequisiteId}
     public function removeCorequisite($id, $courseId, $corequisiteId)
     {
-        $corequisite = Corequisite::where('curriculum_id', $id)
+        $corequisite = CurriculumCourseCorequisite::where('curriculum_id', $id)
             ->where('course_id', $courseId)
             ->where('id', $corequisiteId)
             ->first();
