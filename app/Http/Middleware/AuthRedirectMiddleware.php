@@ -49,6 +49,9 @@ class AuthRedirectMiddleware
 
         // Redirect unauthenticated users to /auth except public routes
         if (!$isAuthenticated && !$isPublicPath) {
+            if ($request->is('api/*')) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
             return redirect('/auth');
         }
 

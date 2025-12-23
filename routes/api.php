@@ -101,6 +101,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/curricula/{id}', [CurriculaController::class, 'show']);
     Route::put('/curricula/{id}', [CurriculaController::class, 'update']);
     Route::delete('/curricula/{id}', [CurriculaController::class, 'destroy']);
+    Route::post('/curricula/{id}/duplicate', [CurriculaController::class, 'duplicate']);
     
     // Curriculum sub-resources
     Route::get('/curricula/{id}/elective-rules', [CurriculaController::class, 'electiveRules']);
