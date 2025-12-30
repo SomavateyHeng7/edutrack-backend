@@ -29,6 +29,8 @@ use App\Http\Controllers\API\Chairperson\CurriculumController;
 use App\Http\Controllers\API\Student\CompletedCourseController;
 use App\Http\Controllers\API\Chairperson\ElectiveRuleController;
 use App\Http\Controllers\API\Chairperson\AvailableCourseController;
+use App\Http\Controllers\API\Chairperson\StudentController;
+use App\Http\Controllers\API\Chairperson\TentativeScheduleController;
 
 // Student
 use App\Http\Controllers\API\Chairperson\FacultyLabelController;
@@ -38,6 +40,7 @@ use App\Http\Controllers\API\Chairperson\FacultyLabelController;
 // Download
 use App\Http\Controllers\API\Chairperson\ConcentrationCourseController;
 use App\Http\Controllers\API\Chairperson\CurriculumBlacklistController;
+use App\Http\Controllers\API\Chairperson\CurriculumConstraintsController;
 
 // Public APIs
 Route::get('/public-faculties', [PublicFacultyController::class, 'index']);
@@ -185,6 +188,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/curricula/{id}/blacklists', [CurriculumBlacklistController::class, 'store']);
     Route::delete('/curricula/{id}/blacklists/{blacklistId}', [CurriculumBlacklistController::class, 'destroy']);
 
+    // Curriculum Constraints
+    Route::get('/curricula/{id}/constraints', [CurriculumConstraintsController::class, 'index']);
+    Route::post('/curricula/{id}/constraints', [CurriculumConstraintsController::class, 'store']);
+    Route::delete('/curricula/{id}/constraints/{constraintId}', [CurriculumConstraintsController::class, 'destroy']);
+
 
     // Faculty Label (Concentration Label)
     Route::get('/faculty/concentration-label', [FacultyLabelController::class, 'getConcentrationLabel']);
@@ -219,5 +227,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Download
     Route::get('/download/sample-xlsx', [DownloadController::class, 'sampleXlsx']);
     Route::get('/download/sample-csv', [DownloadController::class, 'sampleCsv']);
+
+    // Student Management (Chairperson)
+    Route::get('/students', [StudentController::class, 'index']);
+    Route::get('/students/{id}/progress', [StudentController::class, 'progress']);
+    Route::get('/students/{id}/planned-courses', [StudentController::class, 'plannedCourses']);
+    Route::put('/students/{id}/update', [StudentController::class, 'update']);
+
+    // Tentative Schedules (Chairperson)
+    Route::prefix('tentative-schedules')->group(function () {
+        Route::get('/', [TentativeScheduleController::class, 'index']);
+        Route::post('/', [TentativeScheduleController::class, 'store']);
+        Route::get('/{id}', [TentativeScheduleController::class, 'show']);
+        Route::put('/{id}', [TentativeScheduleController::class, 'update']);
+        Route::delete('/{id}', [TentativeScheduleController::class, 'destroy']);
+    });
 
 });
