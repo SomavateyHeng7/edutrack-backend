@@ -50,6 +50,9 @@ Route::get('/public-curricula/{id}', [PublicCurriculumController::class, 'show']
 Route::get('/public-concentrations', [PublicConcentrationController::class, 'index']);
 Route::get('/public-curricula/{id}/blacklists', [PublicCurriculumController::class, 'blacklists']);
 
+// Public courses endpoint
+Route::get('/public-courses', [CourseController::class, 'index']);
+
 // Available Courses
 Route::get('/available-courses', [AvailableCourseController::class, 'index']);
 
@@ -203,6 +206,39 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // System Setting
     Route::get('/system-settings', [SystemSettingController::class, 'index']);
+
+    // Config Feature Flags
+    Route::get('/config/feature-flags', function () {
+        return response()->json([
+            'electiveRulesEnabled' => true,
+            'constraintsEnabled' => true,
+            'blacklistsEnabled' => true,
+            'concentrationsEnabled' => true,
+        ]);
+    });
+
+    // Student Profile
+    Route::get('/student-profile', function (Request $request) {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        return response()->json([
+            'advisorInfo' => [
+                'name' => $user->name ?? 'Not Assigned',
+                'email' => $user->email ?? '',
+            ],
+        ]);
+    });
+    
+    Route::put('/student-profile', function (Request $request) {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        // Update profile logic here if needed
+        return response()->json(['message' => 'Profile updated successfully']);
+    });
 
     // Curriculum (CurriculumController) - separate from Curricula
     Route::post('/curriculum/upload', [CurriculumController::class, 'upload']);
