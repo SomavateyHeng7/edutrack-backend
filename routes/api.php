@@ -41,6 +41,7 @@ use App\Http\Controllers\API\Chairperson\FacultyLabelController;
 use App\Http\Controllers\API\Chairperson\ConcentrationCourseController;
 use App\Http\Controllers\API\Chairperson\CurriculumBlacklistController;
 use App\Http\Controllers\API\Chairperson\CurriculumConstraintsController;
+use App\Http\Controllers\API\Chairperson\CurriculumCourseConstraintsController;
 
 // Public APIs
 Route::get('/public-faculties', [PublicFacultyController::class, 'index']);
@@ -191,6 +192,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/curricula/{id}/constraints', [CurriculumConstraintsController::class, 'index']);
     Route::post('/curricula/{id}/constraints', [CurriculumConstraintsController::class, 'store']);
     Route::delete('/curricula/{id}/constraints/{constraintId}', [CurriculumConstraintsController::class, 'destroy']);
+
+    // Curriculum Course Constraints (Prerequisites, Corequisites, Flags)
+    Route::get('/curricula/{curriculumId}/courses/{curriculumCourseId}/constraints', [CurriculumCourseConstraintsController::class, 'index']);
+    Route::put('/curricula/{curriculumId}/courses/{curriculumCourseId}/constraints', [CurriculumCourseConstraintsController::class, 'update']);
+    Route::post('/curricula/{curriculumId}/courses/{curriculumCourseId}/prerequisites', [CurriculumCourseConstraintsController::class, 'addPrerequisite']);
+    Route::delete('/curricula/{curriculumId}/courses/{curriculumCourseId}/prerequisites/{relationId}', [CurriculumCourseConstraintsController::class, 'removePrerequisite']);
+    Route::post('/curricula/{curriculumId}/courses/{curriculumCourseId}/corequisites', [CurriculumCourseConstraintsController::class, 'addCorequisite']);
+    Route::delete('/curricula/{curriculumId}/courses/{curriculumCourseId}/corequisites/{relationId}', [CurriculumCourseConstraintsController::class, 'removeCorequisite']);
 
 
     // Faculty Label (Concentration Label)
