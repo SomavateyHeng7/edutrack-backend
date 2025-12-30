@@ -12,7 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('curricula', function (Blueprint $table) {
-            $table->integer('total_credits_required')->default(0)->after('description');
+            // Check if column doesn't exist before adding
+            if (!Schema::hasColumn('curricula', 'total_credits_required')) {
+                $table->integer('total_credits_required')->default(0)->after('description');
+            }
         });
     }
 
