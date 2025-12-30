@@ -155,10 +155,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/{course}/corequisites/{relation}', [CourseController::class, 'removeCorequisite']);
 });
 
-
-    //course search
-    Route::get('/courses/search', [CourseController::class, 'search']);
-
     // Course Types
     Route::prefix('course-types')->group(function () {
         Route::get('/', [CourseTypeController::class, 'index']);

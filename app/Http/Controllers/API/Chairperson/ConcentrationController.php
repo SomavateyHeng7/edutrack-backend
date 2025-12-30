@@ -27,12 +27,36 @@ class ConcentrationController extends Controller
         if (!$user || $user->role !== 'CHAIRPERSON') {
             return response()->json(['error' => 'Forbidden'], 403);
         }
+
+        // Get user's faculty and departments
+        $faculty = $user->faculty?->load('departments');
+        if (!$faculty || $faculty->departments->isEmpty()) {
+            return response()->json(['error' => 'User faculty or department not found'], 404);
+        }
+
+        $departmentIds = $faculty->departments->pluck('id')->toArray();
+
         $validated = $request->validate([
             'name' => 'required|string',
-            'departmentId' => 'required|exists:departments,id',
+            'departmentId' => 'nullable|exists:departments,id',
             'description' => 'nullable|string',
         ]);
-        $concentration = Concentration::create($validated);
+
+        // Auto-assign department if not provided
+        $departmentId = $validated['departmentId'] ?? $departmentIds[0];
+
+        // Validate departmentId is in user's allowed departments
+        if (!in_array($departmentId, $departmentIds)) {
+            return response()->json(['error' => 'Invalid department'], 403);
+        }
+
+        $concentration = Concentration::create([
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'department_id' => $departmentId,
+            'created_by_id' => $user->id,
+        ]);
+
         return response()->json(['concentration' => $concentration], 201);
     }
 

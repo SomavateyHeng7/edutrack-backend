@@ -79,24 +79,27 @@ class BlacklistController extends Controller
         $validated = $request->validate([
             'name' => 'required|string',
             'description' => 'nullable|string',
-            'departmentId' => 'required|integer|in:' . implode(',', $departmentIds),
+            'departmentId' => 'nullable|integer|in:' . implode(',', $departmentIds),
             'courseIds' => 'nullable|array',
             'courseIds.*' => 'integer|exists:courses,id',
         ]);
 
+        // Auto-assign department if not provided
+        $departmentId = $validated['departmentId'] ?? $departmentIds[0];
+
         $exists = Blacklist::where('name', $validated['name'])
-            ->where('department_id', $validated['departmentId'])
+            ->where('department_id', $departmentId)
             ->first();
 
         if ($exists) {
             return response()->json(['error' => 'Blacklist with this name already exists'], 409);
         }
 
-        DB::transaction(function () use ($validated, $user) {
+        DB::transaction(function () use ($validated, $user, $departmentId) {
             $blacklist = Blacklist::create([
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
-                'department_id' => $validated['departmentId'],
+                'department_id' => $departmentId,
                 'created_by_id' => $user->id,
             ]);
 
