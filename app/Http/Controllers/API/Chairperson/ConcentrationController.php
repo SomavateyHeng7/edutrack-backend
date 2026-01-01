@@ -16,7 +16,7 @@ class ConcentrationController extends Controller
             return response()->json(['error' => 'Forbidden'], 403);
         }
         // Fetch accessible concentrations (add department/faculty logic as needed)
-        $concentrations = Concentration::with('department')->orderBy('name')->get();
+        $concentrations = Concentration::with(['department', 'courses.course'])->orderBy('name')->get();
         return response()->json(['concentrations' => $concentrations]);
     }
 
@@ -57,6 +57,9 @@ class ConcentrationController extends Controller
             'created_by_id' => $user->id,
         ]);
 
+        // Load relationships
+        $concentration->load('department', 'courses.course');
+
         return response()->json(['concentration' => $concentration], 201);
     }
 
@@ -67,7 +70,7 @@ class ConcentrationController extends Controller
         if (!$user || !in_array($user->role, ['CHAIRPERSON', 'SUPER_ADMIN'])) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
-        $concentration = Concentration::with('department')->find($id);
+        $concentration = Concentration::with(['department', 'courses.course'])->find($id);
         if (!$concentration) {
             return response()->json(['error' => 'Not found'], 404);
         }

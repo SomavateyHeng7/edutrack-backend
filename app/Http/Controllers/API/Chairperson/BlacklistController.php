@@ -81,7 +81,7 @@ class BlacklistController extends Controller
             'description' => 'nullable|string',
             'departmentId' => 'nullable|integer|in:' . implode(',', $departmentIds),
             'courseIds' => 'nullable|array',
-            'courseIds.*' => 'integer|exists:courses,id',
+            'courseIds.*' => 'integer',
         ]);
 
         // Auto-assign department if not provided
@@ -95,7 +95,7 @@ class BlacklistController extends Controller
             return response()->json(['error' => 'Blacklist with this name already exists'], 409);
         }
 
-        DB::transaction(function () use ($validated, $user, $departmentId) {
+        $blacklist = DB::transaction(function () use ($validated, $user, $departmentId) {
             $blacklist = Blacklist::create([
                 'name' => $validated['name'],
                 'description' => $validated['description'] ?? null,
@@ -104,7 +104,10 @@ class BlacklistController extends Controller
             ]);
 
             if (!empty($validated['courseIds'])) {
-                foreach ($validated['courseIds'] as $courseId) {
+                // Filter to only include course IDs that exist in the database
+                $existingCourseIds = Course::whereIn('id', $validated['courseIds'])->pluck('id')->toArray();
+                
+                foreach ($existingCourseIds as $courseId) {
                     BlacklistCourse::create([
                         'blacklist_id' => $blacklist->id,
                         'course_id' => $courseId,
@@ -120,9 +123,31 @@ class BlacklistController extends Controller
                 'changes' => $validated,
                 'description' => 'Created blacklist "' . $blacklist->name . '"',
             ]);
+
+            return $blacklist;
         });
 
-        return response()->json(['message' => 'Blacklist created successfully'], 201);
+        // Load relationships and return the created blacklist
+        $blacklist->load([
+            'department:id,name',
+            'createdBy:id,name',
+            'courses.course:id,code,name,credits,description',
+            'curriculumBlacklists',
+        ]);
+
+        return response()->json([
+            'id' => $blacklist->id,
+            'name' => $blacklist->name,
+            'description' => $blacklist->description,
+            'departmentId' => $blacklist->department_id,
+            'department' => $blacklist->department,
+            'createdBy' => $blacklist->createdBy,
+            'courses' => $blacklist->courses->map(fn ($bc) => $bc->course),
+            'courseCount' => $blacklist->courses->count(),
+            'usageCount' => $blacklist->curriculumBlacklists->count(),
+            'createdAt' => $blacklist->created_at,
+            'updatedAt' => $blacklist->updated_at,
+        ], 201);
     }
 
     /* =========================================================
@@ -188,7 +213,7 @@ class BlacklistController extends Controller
             'name' => 'nullable|string',
             'description' => 'nullable|string',
             'courseIds' => 'nullable|array',
-            'courseIds.*' => 'integer|exists:courses,id',
+            'courseIds.*' => 'integer',
         ]);
 
         DB::transaction(function () use ($validated, $blacklist, $user) {
@@ -208,7 +233,11 @@ class BlacklistController extends Controller
 
             if (array_key_exists('courseIds', $validated)) {
                 BlacklistCourse::where('blacklist_id', $blacklist->id)->delete();
-                foreach ($validated['courseIds'] as $courseId) {
+                
+                // Filter to only include course IDs that exist in the database
+                $existingCourseIds = Course::whereIn('id', $validated['courseIds'])->pluck('id')->toArray();
+                
+                foreach ($existingCourseIds as $courseId) {
                     BlacklistCourse::create([
                         'blacklist_id' => $blacklist->id,
                         'course_id' => $courseId,
@@ -229,7 +258,27 @@ class BlacklistController extends Controller
             }
         });
 
-        return response()->json(['message' => 'Blacklist updated successfully']);
+        // Load relationships and return the updated blacklist
+        $blacklist->load([
+            'department:id,name',
+            'createdBy:id,name',
+            'courses.course:id,code,name,credits,description',
+            'curriculumBlacklists',
+        ]);
+
+        return response()->json([
+            'id' => $blacklist->id,
+            'name' => $blacklist->name,
+            'description' => $blacklist->description,
+            'departmentId' => $blacklist->department_id,
+            'department' => $blacklist->department,
+            'createdBy' => $blacklist->createdBy,
+            'courses' => $blacklist->courses->map(fn ($bc) => $bc->course),
+            'courseCount' => $blacklist->courses->count(),
+            'usageCount' => $blacklist->curriculumBlacklists->count(),
+            'createdAt' => $blacklist->created_at,
+            'updatedAt' => $blacklist->updated_at,
+        ]);
     }
 
     /* =========================================================
