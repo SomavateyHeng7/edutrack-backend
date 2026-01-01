@@ -137,8 +137,68 @@ class DownloadController extends Controller
 
         foreach ($sampleData as $rowIndex => $row) {
             foreach ($row as $colIndex => $value) {
-                $sheet->setCellValueByColumnAndRow($colIndex + 1, $rowIndex + 1, $value);
+                $cellCoordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1) . ($rowIndex + 1);
+                $sheet->setCellValue($cellCoordinate, $value);
             }
+        }
+    }
+
+    // GET /api/download/tentative-schedule-template
+    public function tentativeScheduleTemplate()
+    {
+        try {
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // Write template data
+            $templateData = [
+                ['Course', 'Course Name', 'Section', 'Day', 'Time', 'Instructor Name', 'Seat Limit'],
+                ['CSX3001', 'Database Systems', 'A', 'Mon,Wed', '09:00-10:30', 'Dr. Smith', '40'],
+                ['CSX3002', 'Software Engineering', 'B', 'Tue,Thu', '13:00-14:30', 'Dr. Johnson', '35'],
+                ['CSX3003', 'Data Structure', 'A', 'Mon,Wed,Fri', '10:30-12:00', 'Prof. Williams', '45'],
+                ['CSX3004', 'Computer Networks', 'C', 'Tue', '14:30-17:00', 'Dr. Brown', '30'],
+            ];
+
+            foreach ($templateData as $rowIndex => $row) {
+                foreach ($row as $colIndex => $value) {
+                    $cellCoordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1) . ($rowIndex + 1);
+                    $sheet->setCellValue($cellCoordinate, $value);
+                }
+            }
+
+            // Style header row
+            $headerStyle = [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '366092']
+                ],
+                'alignment' => ['horizontal' => 'center', 'vertical' => 'center'],
+            ];
+            $sheet->getStyle('A1:G1')->applyFromArray($headerStyle);
+
+            // Set column widths
+            $sheet->getColumnDimension('A')->setWidth(12);
+            $sheet->getColumnDimension('B')->setWidth(35);
+            $sheet->getColumnDimension('C')->setWidth(10);
+            $sheet->getColumnDimension('D')->setWidth(15);
+            $sheet->getColumnDimension('E')->setWidth(15);
+            $sheet->getColumnDimension('F')->setWidth(20);
+            $sheet->getColumnDimension('G')->setWidth(12);
+
+            // Output file
+            $writer = new Xlsx($spreadsheet);
+            ob_start();
+            $writer->save('php://output');
+            $excelOutput = ob_get_clean();
+
+            return response($excelOutput, 200, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="tentative_schedule_template.xlsx"',
+                'Cache-Control' => 'no-cache',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to generate template file: ' . $e->getMessage()], 500);
         }
     }
 }

@@ -76,6 +76,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'update']);  
     Route::delete('/concentrations/{id}', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'destroy']);
     
+    // Concentration Courses (nested routes)
+    Route::get('/concentrations/{id}/courses', [ConcentrationCourseController::class, 'coursesIndex']);
+    Route::post('/concentrations/{id}/courses', [ConcentrationCourseController::class, 'coursesStore']);
+    Route::delete('/concentrations/{id}/courses', [ConcentrationCourseController::class, 'coursesDestroy']);
+    
     // Auth routes
     Route::post('/logout', [AuthController::class, 'logout']);
     
@@ -127,6 +132,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // SEARCH & BULK
     // =========================
     Route::get('/search', [CourseController::class, 'search']);
+    Route::post('/map-codes', [CourseController::class, 'mapCodes']);
     Route::post('/bulk-create', [CourseController::class, 'bulkCreate']);
 
     // =========================
@@ -268,6 +274,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Download
     Route::get('/download/sample-xlsx', [DownloadController::class, 'sampleXlsx']);
     Route::get('/download/sample-csv', [DownloadController::class, 'sampleCsv']);
+    Route::get('/download/tentative-schedule-template', [DownloadController::class, 'tentativeScheduleTemplate']);
 
     // Student Management (Chairperson)
     Route::get('/students', [StudentController::class, 'index']);

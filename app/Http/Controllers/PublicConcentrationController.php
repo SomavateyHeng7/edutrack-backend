@@ -25,7 +25,7 @@ class PublicConcentrationController extends Controller
                 ->with([
                     'courses.course',
                     'curriculumConcentrations' => function ($q) use ($curriculumId) {
-                        $q->where('curriculumId', $curriculumId);
+                        $q->where('curriculum_id', $curriculumId);
                     }
                 ])
                 ->get();

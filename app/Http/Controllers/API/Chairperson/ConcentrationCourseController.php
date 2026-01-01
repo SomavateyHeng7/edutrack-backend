@@ -85,16 +85,16 @@ class ConcentrationCourseController extends Controller
         if (!$user || $user->role !== 'CHAIRPERSON') {
             return response()->json(['error' => 'Chairperson access required'], 403);
         }
-        $faculty = Faculty::with('departments')->find($user->facultyId);
+        $faculty = Faculty::with('departments')->find($user->faculty_id);
         $accessibleDepartmentIds = $faculty ? $faculty->departments->pluck('id')->toArray() : [];
         $concentration = Concentration::where('id', $id)
-            ->whereIn('departmentId', $accessibleDepartmentIds)
+            ->whereIn('department_id', $accessibleDepartmentIds)
             ->first();
         if (!$concentration) {
             return response()->json(['error' => 'Concentration not found'], 404);
         }
         $concentrationCourses = ConcentrationCourse::with('course')
-            ->where('concentrationId', $id)
+            ->where('concentration_id', $id)
             ->orderBy(Course::select('code')->whereColumn('courses.id', 'concentration_courses.course_id'))
             ->get();
         $courses = $concentrationCourses->map(function ($cc) {
@@ -103,7 +103,7 @@ class ConcentrationCourseController extends Controller
                 'code' => $cc->course->code,
                 'name' => $cc->course->name,
                 'credits' => $cc->course->credits,
-                'creditHours' => $cc->course->creditHours,
+                'creditHours' => $cc->course->credit_hours,
                 'description' => $cc->course->description,
             ];
         });
@@ -122,10 +122,10 @@ class ConcentrationCourseController extends Controller
         if (!$user || $user->role !== 'CHAIRPERSON') {
             return response()->json(['error' => 'Chairperson access required'], 403);
         }
-        $faculty = Faculty::with('departments')->find($user->facultyId);
+        $faculty = Faculty::with('departments')->find($user->faculty_id);
         $accessibleDepartmentIds = $faculty ? $faculty->departments->pluck('id')->toArray() : [];
         $concentration = Concentration::where('id', $id)
-            ->whereIn('departmentId', $accessibleDepartmentIds)
+            ->whereIn('department_id', $accessibleDepartmentIds)
             ->first();
         if (!$concentration) {
             return response()->json(['error' => 'Concentration not found'], 404);
@@ -147,19 +147,19 @@ class ConcentrationCourseController extends Controller
                 [
                     'name' => trim($name),
                     'credits' => $courseData['credits'] ?? 3,
-                    'creditHours' => $courseData['creditHours'] ?? "3-0-3",
+                    'credit_hours' => $courseData['creditHours'] ?? "3-0-3",
                     'description' => $courseData['description'] ?? null,
                 ]
             );
-            $exists = ConcentrationCourse::where('concentrationId', $id)
-                ->where('courseId', $course->id)
+            $exists = ConcentrationCourse::where('concentration_id', $id)
+                ->where('course_id', $course->id)
                 ->exists();
             if ($exists) {
                 $results['skipped']++;
             } else {
                 ConcentrationCourse::create([
-                    'concentrationId' => $id,
-                    'courseId' => $course->id,
+                    'concentration_id' => $id,
+                    'course_id' => $course->id,
                 ]);
                 $results['added']++;
             }
@@ -177,10 +177,10 @@ class ConcentrationCourseController extends Controller
         if (!$user || $user->role !== 'CHAIRPERSON') {
             return response()->json(['error' => 'Chairperson access required'], 403);
         }
-        $faculty = Faculty::with('departments')->find($user->facultyId);
+        $faculty = Faculty::with('departments')->find($user->faculty_id);
         $accessibleDepartmentIds = $faculty ? $faculty->departments->pluck('id')->toArray() : [];
         $concentration = Concentration::where('id', $id)
-            ->whereIn('departmentId', $accessibleDepartmentIds)
+            ->whereIn('department_id', $accessibleDepartmentIds)
             ->first();
         if (!$concentration) {
             return response()->json(['error' => 'Concentration not found'], 404);
@@ -189,8 +189,8 @@ class ConcentrationCourseController extends Controller
         if (!$courseId) {
             return response()->json(['error' => 'Course ID is required'], 400);
         }
-        $deleted = ConcentrationCourse::where('concentrationId', $id)
-            ->where('courseId', $courseId)
+        $deleted = ConcentrationCourse::where('concentration_id', $id)
+            ->where('course_id', $courseId)
             ->delete();
         if ($deleted === 0) {
             return response()->json(['error' => 'Course not found in concentration'], 404);

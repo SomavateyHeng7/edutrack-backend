@@ -81,7 +81,7 @@ class BlacklistController extends Controller
             'description' => 'nullable|string',
             'departmentId' => 'nullable|integer|in:' . implode(',', $departmentIds),
             'courseIds' => 'nullable|array',
-            'courseIds.*' => 'integer',
+            'courseIds.*' => 'string',
         ]);
 
         // Auto-assign department if not provided
@@ -213,7 +213,7 @@ class BlacklistController extends Controller
             'name' => 'nullable|string',
             'description' => 'nullable|string',
             'courseIds' => 'nullable|array',
-            'courseIds.*' => 'integer',
+            'courseIds.*' => 'string',
         ]);
 
         DB::transaction(function () use ($validated, $blacklist, $user) {

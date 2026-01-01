@@ -284,8 +284,57 @@ class CourseController extends Controller
         ]);
     }
 
-    /* =====================================================
-     * POST /api/courses/bulk-create
+    /* =====================================================     * POST /api/courses/map-codes
+     * Map course codes to IDs, checking which exist
+     * ===================================================== */
+    public function mapCodes(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Chairperson access required'], 403);
+        }
+
+        $validated = $request->validate([
+            'codes' => 'required|array',
+            'codes.*' => 'required|string',
+        ]);
+
+        $codes = array_map('trim', $validated['codes']);
+        
+        // Find existing courses (case-insensitive)
+        $existingCourses = Course::where('is_active', true)
+            ->whereIn(DB::raw('LOWER(code)'), array_map('strtolower', $codes))
+            ->get()
+            ->keyBy(function ($course) {
+                return strtolower($course->code);
+            });
+
+        // Map each code to its result
+        $results = array_map(function ($code) use ($existingCourses) {
+            $lowerCode = strtolower($code);
+            $existingCourse = $existingCourses->get($lowerCode);
+            
+            if ($existingCourse) {
+                return [
+                    'code' => $code,
+                    'id' => $existingCourse->id,
+                    'found' => true,
+                    'isNew' => false,
+                ];
+            } else {
+                return [
+                    'code' => $code,
+                    'id' => '',
+                    'found' => false,
+                    'isNew' => true,
+                ];
+            }
+        }, $codes);
+
+        return response()->json(['results' => $results]);
+    }
+
+    /* =====================================================     * POST /api/courses/bulk-create
      * ===================================================== */
     public function bulkCreate(Request $request)
     {
