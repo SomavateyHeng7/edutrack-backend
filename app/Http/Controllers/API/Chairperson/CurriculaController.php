@@ -269,8 +269,10 @@ class CurriculaController extends Controller
         // Get elective rules
         $electiveRules = $curriculum->electiveRules;
 
-        // Build course breakdown by category
-        $coursesByCategory = [];
+        // Build curriculum courses array with all required fields
+        $curriculumCourses = [];
+        $categoriesSet = [];
+        
         foreach ($curriculum->curriculumCourses as $cc) {
             $courseTypes = $cc->course->departmentCourseTypes;
             $categoryName = 'Uncategorized';
@@ -279,21 +281,34 @@ class CurriculaController extends Controller
                 $categoryName = $courseTypes->first()->courseType->name ?? 'Uncategorized';
             }
 
-            if (!isset($coursesByCategory[$categoryName])) {
-                $coursesByCategory[$categoryName] = [];
+            // Add to categories set
+            if (!in_array($categoryName, $categoriesSet)) {
+                $categoriesSet[] = $categoryName;
             }
 
-            $coursesByCategory[$categoryName][] = [
+            // Parse position to get year and semester
+            $position = $cc->position ?? 0;
+            $year = intval($position / 10);
+            $semester = $position % 10;
+            if ($semester === 0) $semester = 1;
+            if ($year === 0) $year = 1;
+
+            $curriculumCourses[] = [
                 'id' => $cc->course->id,
                 'code' => $cc->course->code,
                 'name' => $cc->course->name,
+                'category' => $categoryName,
                 'credits' => $cc->course->credits,
+                'isRequired' => $cc->is_required ?? false,
+                'semester' => strval($semester),
+                'year' => $year,
             ];
         }
 
         return response()->json([
             'electiveRules' => $electiveRules,
-            'coursesByCategory' => $coursesByCategory,
+            'curriculumCourses' => $curriculumCourses,
+            'courseCategories' => $categoriesSet,
         ]);
     }
 
@@ -335,6 +350,108 @@ class CurriculaController extends Controller
         });
 
         return response()->json(['concentrations' => $concentrations]);
+    }
+
+    // POST /api/curricula/{id}/concentrations
+    public function addConcentration(Request $request, $id)
+    {
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Chairperson access required'], 403);
+        }
+
+        $curriculum = Curriculum::find($id);
+        if (!$curriculum) {
+            return response()->json(['error' => 'Curriculum not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'concentrationId' => 'required|exists:concentrations,id',
+            'requiredCourses' => 'nullable|integer|min:1',
+        ]);
+
+        // Check if concentration is already added
+        $existing = CurriculumConcentration::where('curriculum_id', $id)
+            ->where('concentration_id', $validated['concentrationId'])
+            ->first();
+
+        if ($existing) {
+            return response()->json(['error' => 'Concentration already added to curriculum'], 400);
+        }
+
+        $curriculumConcentration = CurriculumConcentration::create([
+            'curriculum_id' => $id,
+            'concentration_id' => $validated['concentrationId'],
+            'required_courses' => $validated['requiredCourses'] ?? 1,
+        ]);
+
+        return response()->json([
+            'message' => 'Concentration added to curriculum successfully',
+            'curriculumConcentration' => $curriculumConcentration,
+        ], 201);
+    }
+
+    // PUT /api/curricula/{id}/concentrations/{concentrationId}
+    public function updateConcentration(Request $request, $id, $concentrationId)
+    {
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Chairperson access required'], 403);
+        }
+
+        $curriculum = Curriculum::find($id);
+        if (!$curriculum) {
+            return response()->json(['error' => 'Curriculum not found'], 404);
+        }
+
+        $validated = $request->validate([
+            'requiredCourses' => 'required|integer|min:1',
+        ]);
+
+        $curriculumConcentration = CurriculumConcentration::where('curriculum_id', $id)
+            ->where('concentration_id', $concentrationId)
+            ->first();
+
+        if (!$curriculumConcentration) {
+            return response()->json(['error' => 'Concentration not found in curriculum'], 404);
+        }
+
+        $curriculumConcentration->update([
+            'required_courses' => $validated['requiredCourses'],
+        ]);
+
+        return response()->json([
+            'message' => 'Concentration requirement updated successfully',
+            'curriculumConcentration' => $curriculumConcentration,
+        ]);
+    }
+
+    // DELETE /api/curricula/{id}/concentrations/{concentrationId}
+    public function removeConcentration($id, $concentrationId)
+    {
+        $user = Auth::user();
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Chairperson access required'], 403);
+        }
+
+        $curriculum = Curriculum::find($id);
+        if (!$curriculum) {
+            return response()->json(['error' => 'Curriculum not found'], 404);
+        }
+
+        $curriculumConcentration = CurriculumConcentration::where('curriculum_id', $id)
+            ->where('concentration_id', $concentrationId)
+            ->first();
+
+        if (!$curriculumConcentration) {
+            return response()->json(['error' => 'Concentration not found in curriculum'], 404);
+        }
+
+        $curriculumConcentration->delete();
+
+        return response()->json([
+            'message' => 'Concentration removed from curriculum successfully',
+        ]);
     }
 
     // GET /api/curricula/{id}/blacklists

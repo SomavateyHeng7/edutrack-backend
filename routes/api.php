@@ -118,6 +118,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Curriculum sub-resources
     Route::get('/curricula/{id}/elective-rules', [CurriculaController::class, 'electiveRules']);
     Route::get('/curricula/{id}/concentrations', [CurriculaController::class, 'concentrations']);
+    Route::post('/curricula/{id}/concentrations', [CurriculaController::class, 'addConcentration']);
+    Route::put('/curricula/{id}/concentrations/{concentrationId}', [CurriculaController::class, 'updateConcentration']);
+    Route::delete('/curricula/{id}/concentrations/{concentrationId}', [CurriculaController::class, 'removeConcentration']);
     Route::get('/curricula/{id}/blacklists', [CurriculaController::class, 'blacklists']);
 
    Route::prefix('courses')->middleware('auth:sanctum')->group(function () {
