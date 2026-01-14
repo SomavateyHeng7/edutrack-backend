@@ -31,6 +31,8 @@ use App\Http\Controllers\API\Chairperson\ElectiveRuleController;
 use App\Http\Controllers\API\Chairperson\AvailableCourseController;
 use App\Http\Controllers\API\Chairperson\StudentController;
 use App\Http\Controllers\API\Chairperson\TentativeScheduleController;
+use App\Http\Controllers\API\Chairperson\GraduationPortalController;
+use App\Http\Controllers\API\Chairperson\CreditPoolController;
 
 // Student
 use App\Http\Controllers\API\Chairperson\FacultyLabelController;
@@ -292,6 +294,38 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/{id}', [TentativeScheduleController::class, 'show']);
         Route::put('/{id}', [TentativeScheduleController::class, 'update']);
         Route::delete('/{id}', [TentativeScheduleController::class, 'destroy']);
+    });
+
+    // Graduation Portals (Chairperson)
+    Route::prefix('graduation-portals')->group(function () {
+        Route::get('/', [GraduationPortalController::class, 'index']);
+        Route::post('/', [GraduationPortalController::class, 'store']);
+        Route::get('/{id}', [GraduationPortalController::class, 'show']);
+        Route::put('/{id}', [GraduationPortalController::class, 'update']);
+        Route::delete('/{id}', [GraduationPortalController::class, 'destroy']);
+        
+        // Submissions for a specific portal
+        Route::get('/{id}/submissions', [GraduationPortalController::class, 'submissions']);
+        Route::post('/{portalId}/submissions/{submissionId}/process', [GraduationPortalController::class, 'processSubmission']);
+        Route::post('/{portalId}/submissions/{submissionId}/approve', [GraduationPortalController::class, 'approveSubmission']);
+        Route::post('/{portalId}/submissions/{submissionId}/reject', [GraduationPortalController::class, 'rejectSubmission']);
+    });
+
+    // Credit Pools (Curriculum-specific)
+    Route::prefix('curricula/{curriculumId}')->group(function () {
+        // Credit Pool CRUD
+        Route::get('/credit-pools', [CreditPoolController::class, 'index']);
+        Route::post('/credit-pools', [CreditPoolController::class, 'store']);
+        Route::put('/credit-pools/{poolId}', [CreditPoolController::class, 'update']);
+        Route::delete('/credit-pools/{poolId}', [CreditPoolController::class, 'destroy']);
+        
+        // Sub-category management
+        Route::post('/credit-pools/{poolId}/sub-categories', [CreditPoolController::class, 'addSubCategory']);
+        Route::put('/credit-pools/{poolId}/sub-categories/{subCatId}', [CreditPoolController::class, 'updateSubCategory']);
+        
+        // Course attachments
+        Route::post('/credit-pools/sub-categories/{subCatId}/attach-courses', [CreditPoolController::class, 'attachCourses']);
+        Route::delete('/credit-pools/attachments/{attachmentId}', [CreditPoolController::class, 'detachCourse']);
     });
 
 });
