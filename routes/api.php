@@ -56,6 +56,23 @@ Route::get('/public-curricula/{id}/blacklists', [PublicCurriculumController::cla
 // Public courses endpoint
 Route::get('/public-courses', [CourseController::class, 'index']);
 
+// ============================================
+// GRADUATION PORTAL PUBLIC ROUTES (for students)
+// ============================================
+use App\Http\Controllers\PublicGraduationPortalController;
+use App\Http\Controllers\GraduationSubmissionController;
+
+Route::prefix('public/graduation-portals')->group(function () {
+    Route::get('/', [PublicGraduationPortalController::class, 'index']);
+    Route::get('/{portal}', [PublicGraduationPortalController::class, 'show']);
+    Route::post('/{portal}/verify-pin', [PublicGraduationPortalController::class, 'verifyPin']);
+    Route::get('/{portal}/curricula', [PublicGraduationPortalController::class, 'getCurricula']);
+});
+
+// PIN-authenticated submission route (uses graduation.session middleware)
+Route::post('/graduation-portals/{portal}/submit', [GraduationSubmissionController::class, 'store'])
+    ->middleware('graduation.session');
+
 // Available Courses
 Route::get('/available-courses', [AvailableCourseController::class, 'index']);
 
@@ -304,12 +321,27 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{id}', [GraduationPortalController::class, 'update']);
         Route::delete('/{id}', [GraduationPortalController::class, 'destroy']);
         
-        // Submissions for a specific portal
+        // Portal actions
+        Route::post('/{id}/close', [GraduationPortalController::class, 'close']);
+        Route::post('/{id}/regenerate-pin', [GraduationPortalController::class, 'regeneratePin']);
+        
+        // Cache-based submissions (PDPA compliant)
+        Route::get('/{portal}/cache-submissions', [GraduationSubmissionController::class, 'index']);
+        Route::get('/{portal}/cache-submissions/{submissionId}', [GraduationSubmissionController::class, 'show']);
+        Route::post('/{portal}/cache-submissions/{submissionId}/validate', [GraduationSubmissionController::class, 'validate']);
+        Route::post('/{portal}/cache-submissions/{submissionId}/approve', [GraduationSubmissionController::class, 'approve']);
+        Route::post('/{portal}/cache-submissions/{submissionId}/reject', [GraduationSubmissionController::class, 'reject']);
+        Route::get('/{portal}/cache-submissions/{submissionId}/report', [GraduationSubmissionController::class, 'downloadReport']);
+        
+        // Legacy database-based submissions (for backward compatibility)
         Route::get('/{id}/submissions', [GraduationPortalController::class, 'submissions']);
         Route::post('/{portalId}/submissions/{submissionId}/process', [GraduationPortalController::class, 'processSubmission']);
         Route::post('/{portalId}/submissions/{submissionId}/approve', [GraduationPortalController::class, 'approveSubmission']);
         Route::post('/{portalId}/submissions/{submissionId}/reject', [GraduationPortalController::class, 'rejectSubmission']);
     });
+    
+    // Batch operations for graduation submissions
+    Route::post('/graduation-submissions/batch-validate', [GraduationSubmissionController::class, 'batchValidate']);
 
     // Credit Pools (Curriculum-specific)
     Route::prefix('curricula/{curriculumId}')->group(function () {

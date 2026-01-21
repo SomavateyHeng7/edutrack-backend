@@ -1,0 +1,632 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Events\NewGraduationSubmission;
+use App\Events\SubmissionValidated;
+use App\Http\Requests\StoreGraduationSubmissionRequest;
+use App\Models\GraduationPortal;
+use App\Models\GraduationPortalLog;
+use App\Services\GraduationValidationService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
+
+class GraduationSubmissionController extends Controller
+{
+    public function __construct(
+        private GraduationValidationService $validationService
+    ) {}
+
+    /**
+     * Submit course data for validation
+     * 
+     * @OA\Post(
+     *     path="/api/graduation-portals/{portal}/submit",
+     *     summary="Submit graduation data",
+     *     tags={"Graduation Submissions"}
+     * )
+     */
+    public function store(StoreGraduationSubmissionRequest $request, GraduationPortal $portal): JsonResponse
+    {
+        try {
+            $session = $request->input('graduation_session');
+            $cacheStore = config('graduation.cache_store', 'file');
+            $ttl = config('graduation.submission_ttl_minutes', 30);
+
+            // Sanitize inputs
+            $studentIdentifier = $this->sanitizeIdentifier($request->input('student_identifier'));
+            $courses = $this->sanitizeCourses($request->input('courses'));
+            $curriculumId = $request->input('curriculum_id');
+
+            // Generate unique submission ID
+            $submissionId = (string) Str::uuid();
+
+            // Prepare submission data
+            $submissionData = [
+                'id' => $submissionId,
+                'portal_id' => $portal->id,
+                'student_identifier' => $studentIdentifier,
+                'curriculum_id' => $curriculumId,
+                'courses' => $courses,
+                'status' => 'pending',
+                'validation_result' => null,
+                'submitted_at' => now()->toIso8601String(),
+                'expires_at' => now()->addMinutes($ttl)->toIso8601String(),
+                'metadata' => $request->input('metadata', []),
+                'ip_address' => $request->ip(),
+            ];
+
+            // Store in cache
+            Cache::store($cacheStore)->put(
+                "graduation_submission:{$submissionId}",
+                $submissionData,
+                now()->addMinutes($ttl)
+            );
+
+            // Add to portal's submission list
+            $this->addToPortalSubmissionList($portal->id, $submissionId, $cacheStore, $ttl);
+
+            // Log the submission
+            GraduationPortalLog::log(
+                $portal->id,
+                GraduationPortalLog::ACTION_SUBMISSION_RECEIVED,
+                null, // Anonymous student
+                [
+                    'submission_id' => $submissionId,
+                    'student_identifier' => $studentIdentifier,
+                    'course_count' => count($courses),
+                ]
+            );
+
+            // Broadcast event for real-time notification to CP/Advisors
+            try {
+                event(new NewGraduationSubmission($portal, $submissionId, [
+                    'student_identifier' => $studentIdentifier,
+                    'curriculum_id' => $curriculumId,
+                    'course_count' => count($courses),
+                    'submitted_at' => $submissionData['submitted_at'],
+                ]));
+            } catch (\Exception $e) {
+                // Log but don't fail if broadcasting fails
+                Log::warning('Failed to broadcast submission event: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'message' => 'Submission received successfully',
+                'submission' => [
+                    'id' => $submissionId,
+                    'status' => 'pending',
+                    'expires_at' => $submissionData['expires_at'],
+                    'course_count' => count($courses),
+                ],
+            ], 201);
+
+        } catch (\Exception $e) {
+            Log::error('Error storing graduation submission: ' . $e->getMessage(), [
+                'portal_id' => $portal->id,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to submit graduation data',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * List submissions for a portal
+     */
+    public function index(Request $request, GraduationPortal $portal): JsonResponse
+    {
+        try {
+            $this->authorizeAccess($request->user(), $portal);
+            
+            $cacheStore = config('graduation.cache_store', 'file');
+            $submissionIds = Cache::store($cacheStore)->get("portal_submissions:{$portal->id}", []);
+            
+            $submissions = [];
+            $activeIds = [];
+            
+            foreach ($submissionIds as $submissionId) {
+                $submission = Cache::store($cacheStore)->get("graduation_submission:{$submissionId}");
+                
+                if ($submission) {
+                    $submissions[] = [
+                        'id' => $submission['id'],
+                        'student_identifier' => $submission['student_identifier'],
+                        'curriculum_id' => $submission['curriculum_id'],
+                        'status' => $submission['status'],
+                        'course_count' => count($submission['courses'] ?? []),
+                        'submitted_at' => $submission['submitted_at'],
+                        'expires_at' => $submission['expires_at'],
+                        'has_validation_result' => !empty($submission['validation_result']),
+                    ];
+                    $activeIds[] = $submissionId;
+                }
+            }
+            
+            // Update the list to remove expired submissions
+            if (count($activeIds) !== count($submissionIds)) {
+                Cache::store($cacheStore)->put(
+                    "portal_submissions:{$portal->id}",
+                    $activeIds,
+                    now()->addMinutes(config('graduation.submission_ttl_minutes', 30))
+                );
+            }
+            
+            // Sort by submitted_at descending
+            usort($submissions, fn($a, $b) => strcmp($b['submitted_at'], $a['submitted_at']));
+
+            return response()->json([
+                'submissions' => $submissions,
+                'total' => count($submissions),
+                'note' => 'Submissions are stored temporarily and will expire after ' . config('graduation.submission_ttl_minutes', 30) . ' minutes',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching submissions: ' . $e->getMessage(), [
+                'portal_id' => $portal->id,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to fetch submissions',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Get single submission details
+     */
+    public function show(Request $request, GraduationPortal $portal, string $submissionId): JsonResponse
+    {
+        try {
+            $this->authorizeAccess($request->user(), $portal);
+            
+            $cacheStore = config('graduation.cache_store', 'file');
+            $submission = Cache::store($cacheStore)->get("graduation_submission:{$submissionId}");
+            
+            if (!$submission) {
+                return response()->json([
+                    'error' => [
+                        'message' => 'Submission not found or has expired',
+                        'code' => 'SUBMISSION_EXPIRED'
+                    ]
+                ], 404);
+            }
+            
+            if ((string)$submission['portal_id'] !== (string)$portal->id) {
+                return response()->json([
+                    'error' => ['message' => 'Submission does not belong to this portal']
+                ], 403);
+            }
+
+            return response()->json([
+                'submission' => $submission,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to fetch submission',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate a submission against curriculum
+     */
+    public function validate(Request $request, GraduationPortal $portal, string $submissionId): JsonResponse
+    {
+        try {
+            $this->authorizeAccess($request->user(), $portal);
+            
+            $cacheStore = config('graduation.cache_store', 'file');
+            $submission = Cache::store($cacheStore)->get("graduation_submission:{$submissionId}");
+            
+            if (!$submission) {
+                return response()->json([
+                    'error' => [
+                        'message' => 'Submission not found or has expired',
+                        'code' => 'SUBMISSION_EXPIRED'
+                    ]
+                ], 404);
+            }
+            
+            // Run validation
+            $validationResult = $this->validationService->validate(
+                $submission['courses'],
+                $submission['curriculum_id']
+            );
+            
+            // Update submission with validation result
+            $submission['validation_result'] = $validationResult;
+            $submission['status'] = $validationResult['canGraduate'] ? 'validated' : 'has_issues';
+            $submission['validated_at'] = now()->toIso8601String();
+            $submission['validated_by'] = $request->user()->id;
+            
+            // Store updated submission
+            $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+            Cache::store($cacheStore)->put(
+                "graduation_submission:{$submissionId}",
+                $submission,
+                now()->addMinutes($remainingTtl)
+            );
+            
+            // Log the validation
+            GraduationPortalLog::log(
+                $portal->id,
+                GraduationPortalLog::ACTION_SUBMISSION_VALIDATED,
+                $request->user()->id,
+                [
+                    'submission_id' => $submissionId,
+                    'can_graduate' => $validationResult['canGraduate'],
+                    'error_count' => count($validationResult['errors']),
+                ]
+            );
+            
+            // Broadcast validation result
+            try {
+                event(new SubmissionValidated($portal, $submissionId, $validationResult));
+            } catch (\Exception $e) {
+                Log::warning('Failed to broadcast validation event: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'message' => 'Validation completed',
+                'submission' => [
+                    'id' => $submissionId,
+                    'status' => $submission['status'],
+                    'validation_result' => $validationResult,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error validating submission: ' . $e->getMessage(), [
+                'portal_id' => $portal->id,
+                'submission_id' => $submissionId,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to validate submission',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Batch validate multiple submissions
+     */
+    public function batchValidate(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'submission_ids' => 'required|array|min:1|max:50',
+                'submission_ids.*' => 'required|string|uuid',
+            ]);
+
+            $user = $request->user();
+            $cacheStore = config('graduation.cache_store', 'file');
+            $results = [];
+            $successCount = 0;
+            $failCount = 0;
+
+            foreach ($request->input('submission_ids') as $submissionId) {
+                $submission = Cache::store($cacheStore)->get("graduation_submission:{$submissionId}");
+                
+                if (!$submission) {
+                    $results[] = [
+                        'submission_id' => $submissionId,
+                        'success' => false,
+                        'error' => 'Submission not found or expired',
+                    ];
+                    $failCount++;
+                    continue;
+                }
+
+                // Verify access to the portal
+                $portal = GraduationPortal::find($submission['portal_id']);
+                if (!$portal || !$this->canAccessPortal($user, $portal)) {
+                    $results[] = [
+                        'submission_id' => $submissionId,
+                        'success' => false,
+                        'error' => 'Access denied',
+                    ];
+                    $failCount++;
+                    continue;
+                }
+
+                // Run validation
+                $validationResult = $this->validationService->validate(
+                    $submission['courses'],
+                    $submission['curriculum_id']
+                );
+
+                // Update submission
+                $submission['validation_result'] = $validationResult;
+                $submission['status'] = $validationResult['canGraduate'] ? 'validated' : 'has_issues';
+                $submission['validated_at'] = now()->toIso8601String();
+                $submission['validated_by'] = $user->id;
+
+                $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+                Cache::store($cacheStore)->put(
+                    "graduation_submission:{$submissionId}",
+                    $submission,
+                    now()->addMinutes($remainingTtl)
+                );
+
+                $results[] = [
+                    'submission_id' => $submissionId,
+                    'success' => true,
+                    'can_graduate' => $validationResult['canGraduate'],
+                    'error_count' => count($validationResult['errors']),
+                ];
+                $successCount++;
+            }
+
+            return response()->json([
+                'message' => "Batch validation completed: {$successCount} successful, {$failCount} failed",
+                'results' => $results,
+                'summary' => [
+                    'total' => count($request->input('submission_ids')),
+                    'success' => $successCount,
+                    'failed' => $failCount,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error in batch validation: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'error' => [
+                    'message' => 'Batch validation failed',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * Approve a submission (mark as graduation-ready)
+     */
+    public function approve(Request $request, GraduationPortal $portal, string $submissionId): JsonResponse
+    {
+        try {
+            $this->authorizeAccess($request->user(), $portal);
+            
+            $cacheStore = config('graduation.cache_store', 'file');
+            $submission = Cache::store($cacheStore)->get("graduation_submission:{$submissionId}");
+            
+            if (!$submission) {
+                return response()->json([
+                    'error' => ['message' => 'Submission not found or has expired']
+                ], 404);
+            }
+            
+            $submission['status'] = 'approved';
+            $submission['approved_at'] = now()->toIso8601String();
+            $submission['approved_by'] = $request->user()->id;
+            $submission['approval_notes'] = $request->input('notes');
+            
+            $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+            Cache::store($cacheStore)->put(
+                "graduation_submission:{$submissionId}",
+                $submission,
+                now()->addMinutes($remainingTtl)
+            );
+            
+            GraduationPortalLog::log(
+                $portal->id,
+                GraduationPortalLog::ACTION_SUBMISSION_APPROVED,
+                $request->user()->id,
+                [
+                    'submission_id' => $submissionId,
+                    'student_identifier' => $submission['student_identifier'],
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Submission approved',
+                'submission' => [
+                    'id' => $submissionId,
+                    'status' => 'approved',
+                    'approved_at' => $submission['approved_at'],
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => ['message' => 'Failed to approve submission']
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject a submission
+     */
+    public function reject(Request $request, GraduationPortal $portal, string $submissionId): JsonResponse
+    {
+        try {
+            $this->authorizeAccess($request->user(), $portal);
+            
+            $request->validate([
+                'reason' => 'required|string|max:1000',
+            ]);
+            
+            $cacheStore = config('graduation.cache_store', 'file');
+            $submission = Cache::store($cacheStore)->get("graduation_submission:{$submissionId}");
+            
+            if (!$submission) {
+                return response()->json([
+                    'error' => ['message' => 'Submission not found or has expired']
+                ], 404);
+            }
+            
+            $submission['status'] = 'rejected';
+            $submission['rejected_at'] = now()->toIso8601String();
+            $submission['rejected_by'] = $request->user()->id;
+            $submission['rejection_reason'] = $request->input('reason');
+            
+            $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+            Cache::store($cacheStore)->put(
+                "graduation_submission:{$submissionId}",
+                $submission,
+                now()->addMinutes($remainingTtl)
+            );
+            
+            GraduationPortalLog::log(
+                $portal->id,
+                GraduationPortalLog::ACTION_SUBMISSION_REJECTED,
+                $request->user()->id,
+                [
+                    'submission_id' => $submissionId,
+                    'student_identifier' => $submission['student_identifier'],
+                    'reason' => $request->input('reason'),
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Submission rejected',
+                'submission' => [
+                    'id' => $submissionId,
+                    'status' => 'rejected',
+                    'rejected_at' => $submission['rejected_at'],
+                    'reason' => $submission['rejection_reason'],
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => ['message' => 'Failed to reject submission']
+            ], 500);
+        }
+    }
+
+    /**
+     * Download validation report as PDF
+     */
+    public function downloadReport(Request $request, GraduationPortal $portal, string $submissionId): JsonResponse
+    {
+        try {
+            $this->authorizeAccess($request->user(), $portal);
+            
+            $cacheStore = config('graduation.cache_store', 'file');
+            $submission = Cache::store($cacheStore)->get("graduation_submission:{$submissionId}");
+            
+            if (!$submission) {
+                return response()->json([
+                    'error' => ['message' => 'Submission not found or has expired']
+                ], 404);
+            }
+            
+            if (!$submission['validation_result']) {
+                return response()->json([
+                    'error' => ['message' => 'Submission has not been validated yet']
+                ], 400);
+            }
+
+            // For now, return JSON report data
+            // In production, you would generate a PDF here
+            return response()->json([
+                'report' => [
+                    'generated_at' => now()->toIso8601String(),
+                    'portal' => [
+                        'name' => $portal->name,
+                        'deadline' => $portal->deadline,
+                    ],
+                    'student_identifier' => $submission['student_identifier'],
+                    'submitted_at' => $submission['submitted_at'],
+                    'validation_result' => $submission['validation_result'],
+                ],
+                'note' => 'PDF generation can be implemented using dompdf or similar package',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => ['message' => 'Failed to generate report']
+            ], 500);
+        }
+    }
+
+    // ============================================
+    // HELPER METHODS
+    // ============================================
+
+    private function authorizeAccess($user, GraduationPortal $portal): void
+    {
+        if (!$this->canAccessPortal($user, $portal)) {
+            abort(403, 'Access denied to this portal');
+        }
+    }
+
+    private function canAccessPortal($user, GraduationPortal $portal): bool
+    {
+        if (strtoupper($user->role) === 'ADMIN') {
+            return true;
+        }
+        
+        if (strtoupper($user->role) === 'CHAIRPERSON') {
+            return $user->department_id === $portal->department_id;
+        }
+        
+        if (strtoupper($user->role) === 'ADVISOR') {
+            return $user->department_id === $portal->department_id;
+        }
+        
+        return false;
+    }
+
+    private function sanitizeIdentifier(string $identifier): string
+    {
+        return \Illuminate\Support\Str::limit(
+            strip_tags(trim($identifier)),
+            255,
+            ''
+        );
+    }
+
+    private function sanitizeCourses(array $courses): array
+    {
+        return collect($courses)->map(function ($course) {
+            return [
+                'code' => strtoupper(strip_tags(trim($course['code'] ?? ''))),
+                'name' => strip_tags(trim($course['name'] ?? '')),
+                'credits' => (float) ($course['credits'] ?? 0),
+                'grade' => strtoupper(strip_tags(trim($course['grade'] ?? ''))),
+                'status' => strtolower(strip_tags(trim($course['status'] ?? 'completed'))),
+                'semester' => strip_tags(trim($course['semester'] ?? '')),
+                'category' => strip_tags(trim($course['category'] ?? '')),
+            ];
+        })->toArray();
+    }
+
+    private function addToPortalSubmissionList(int $portalId, string $submissionId, string $cacheStore, int $ttl): void
+    {
+        $listKey = "portal_submissions:{$portalId}";
+        $list = Cache::store($cacheStore)->get($listKey, []);
+        $list[] = $submissionId;
+        
+        // Keep only the most recent submissions (max 100)
+        if (count($list) > 100) {
+            $list = array_slice($list, -100);
+        }
+        
+        Cache::store($cacheStore)->put($listKey, $list, now()->addMinutes($ttl));
+    }
+}

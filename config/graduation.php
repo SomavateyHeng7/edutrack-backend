@@ -1,0 +1,65 @@
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Session TTL (Time To Live)
+    |--------------------------------------------------------------------------
+    | How long a student's session token is valid after PIN verification.
+    | In minutes.
+    */
+    'session_ttl_minutes' => env('GRADUATION_SESSION_TTL', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Submission TTL
+    |--------------------------------------------------------------------------
+    | How long submission data is kept in cache before automatic deletion.
+    | This is for PDPA compliance - data must not persist permanently.
+    | In minutes.
+    */
+    'submission_ttl_minutes' => env('GRADUATION_SUBMISSION_TTL', 30),
+
+    /*
+    |--------------------------------------------------------------------------
+    | IP Validation
+    |--------------------------------------------------------------------------
+    | Whether to validate that requests come from the same IP as session creation.
+    | Disable for development or if students use VPNs.
+    */
+    'validate_ip' => env('GRADUATION_VALIDATE_IP', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Max File Size
+    |--------------------------------------------------------------------------
+    | Maximum file size in MB that students can upload.
+    */
+    'max_file_size_mb' => env('GRADUATION_MAX_FILE_SIZE', 5),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cache Store
+    |--------------------------------------------------------------------------
+    | Which cache store to use for graduation data.
+    | Recommended: redis for production, file for development.
+    */
+    'cache_store' => env('GRADUATION_CACHE_STORE', 'file'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rate Limiting
+    |--------------------------------------------------------------------------
+    | Maximum PIN verification attempts per portal per IP per time window.
+    */
+    'max_pin_attempts' => env('GRADUATION_MAX_PIN_ATTEMPTS', 5),
+    'pin_attempt_decay_minutes' => env('GRADUATION_PIN_ATTEMPT_DECAY', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Submission Limits
+    |--------------------------------------------------------------------------
+    | Maximum number of submissions that can be pending at once per portal.
+    */
+    'max_pending_submissions' => env('GRADUATION_MAX_PENDING_SUBMISSIONS', 100),
+];

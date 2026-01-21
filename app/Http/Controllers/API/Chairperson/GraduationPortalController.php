@@ -700,4 +700,108 @@ class GraduationPortalController extends Controller
         
         return $pin;
     }
+    
+    /**
+     * Close a graduation portal
+     */
+    public function close(Request $request, $id)
+    {
+        try {
+            $portal = GraduationPortal::findOrFail($id);
+            
+            // Verify access
+            $user = $request->user();
+            if ($user->role === 'CHAIRPERSON' && 
+                $user->department_id !== $portal->department_id) {
+                return response()->json([
+                    'error' => ['message' => 'Access denied']
+                ], 403);
+            }
+            
+            $portal->close();
+            
+            // Log the action
+            \App\Models\GraduationPortalLog::log(
+                $portal->id,
+                \App\Models\GraduationPortalLog::ACTION_CLOSED,
+                $user->id,
+                ['closed_at' => $portal->closed_at]
+            );
+            
+            return response()->json([
+                'message' => 'Portal closed successfully',
+                'portal' => $this->formatPortalResponse($portal->fresh()),
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => ['message' => 'Portal not found']
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Error closing portal: ' . $e->getMessage(), [
+                'portalId' => $id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to close portal',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+    
+    /**
+     * Regenerate PIN for a graduation portal
+     */
+    public function regeneratePin(Request $request, $id)
+    {
+        try {
+            $portal = GraduationPortal::findOrFail($id);
+            
+            // Verify access
+            $user = $request->user();
+            if ($user->role === 'CHAIRPERSON' && 
+                $user->department_id !== $portal->department_id) {
+                return response()->json([
+                    'error' => ['message' => 'Access denied']
+                ], 403);
+            }
+            
+            // Generate new PIN
+            $newPin = $portal->setPin();
+            
+            // Log the action
+            \App\Models\GraduationPortalLog::log(
+                $portal->id,
+                \App\Models\GraduationPortalLog::ACTION_PIN_REGENERATED,
+                $user->id,
+                ['regenerated_at' => now()->toIso8601String()]
+            );
+            
+            return response()->json([
+                'message' => 'PIN regenerated successfully',
+                'pin' => $newPin,
+                'portal' => $this->formatPortalResponse($portal->fresh()),
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => ['message' => 'Portal not found']
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Error regenerating PIN: ' . $e->getMessage(), [
+                'portalId' => $id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to regenerate PIN',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
 }
