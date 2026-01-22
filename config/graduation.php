@@ -8,7 +8,7 @@ return [
     | How long a student's session token is valid after PIN verification.
     | In minutes.
     */
-    'session_ttl_minutes' => env('GRADUATION_SESSION_TTL', 15),
+    'session_ttl_minutes' => (int) env('GRADUATION_SESSION_TTL', 15),
 
     /*
     |--------------------------------------------------------------------------
@@ -18,7 +18,7 @@ return [
     | This is for PDPA compliance - data must not persist permanently.
     | In minutes.
     */
-    'submission_ttl_minutes' => env('GRADUATION_SUBMISSION_TTL', 30),
+    'submission_ttl_minutes' => (int) env('GRADUATION_SUBMISSION_TTL', 30),
 
     /*
     |--------------------------------------------------------------------------
@@ -35,7 +35,7 @@ return [
     |--------------------------------------------------------------------------
     | Maximum file size in MB that students can upload.
     */
-    'max_file_size_mb' => env('GRADUATION_MAX_FILE_SIZE', 5),
+    'max_file_size_mb' => (int) env('GRADUATION_MAX_FILE_SIZE', 5),
 
     /*
     |--------------------------------------------------------------------------
@@ -52,8 +52,8 @@ return [
     |--------------------------------------------------------------------------
     | Maximum PIN verification attempts per portal per IP per time window.
     */
-    'max_pin_attempts' => env('GRADUATION_MAX_PIN_ATTEMPTS', 5),
-    'pin_attempt_decay_minutes' => env('GRADUATION_PIN_ATTEMPT_DECAY', 15),
+    'max_pin_attempts' => (int) env('GRADUATION_MAX_PIN_ATTEMPTS', 5),
+    'pin_attempt_decay_minutes' => (int) env('GRADUATION_PIN_ATTEMPT_DECAY', 15),
 
     /*
     |--------------------------------------------------------------------------
@@ -61,5 +61,5 @@ return [
     |--------------------------------------------------------------------------
     | Maximum number of submissions that can be pending at once per portal.
     */
-    'max_pending_submissions' => env('GRADUATION_MAX_PENDING_SUBMISSIONS', 100),
+    'max_pending_submissions' => (int) env('GRADUATION_MAX_PENDING_SUBMISSIONS', 100),
 ];

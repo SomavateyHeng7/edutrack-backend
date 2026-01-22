@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Curriculum;
+use App\Models\Department;
+use App\Models\Faculty;
 use App\Models\GraduationPortal;
 use App\Models\GraduationPortalLog;
 use Illuminate\Http\JsonResponse;
@@ -217,27 +220,106 @@ class PublicGraduationPortalController extends Controller
 
     /**
      * Get available curricula for portal (for curriculum selection)
+     * 
+     * Returns all active curricula in the same department as the portal,
+     * along with the portal's assigned curriculum as default.
      */
-    public function getCurricula(GraduationPortal $portal): JsonResponse
+    public function getCurricula(Request $request, GraduationPortal $portal): JsonResponse
     {
-        // The portal is already associated with a curriculum,
-        // but we might want to let students select from available ones
+        // Build query for curricula
+        $query = Curriculum::query()
+            ->where('is_active', true)
+            ->with(['department:id,name', 'faculty:id,name']);
+
+        // If portal has a department, filter by it
+        if ($portal->department_id) {
+            $query->where('department_id', $portal->department_id);
+        }
         
-        $curricula = [];
+        // Optional: Allow filtering by faculty_id or department_id from query params
+        // This is useful if portal doesn't have a department set
+        if ($request->has('faculty_id')) {
+            $query->where('faculty_id', $request->input('faculty_id'));
+        }
         
-        if ($portal->curriculum) {
-            $curricula[] = [
-                'id' => (string) $portal->curriculum->id,
-                'name' => $portal->curriculum->name,
-                'year' => $portal->curriculum->year,
-                'description' => $portal->curriculum->description,
-                'total_credits_required' => $portal->curriculum->total_credits_required,
-            ];
+        if ($request->has('department_id')) {
+            $query->where('department_id', $request->input('department_id'));
         }
 
+        $curricula = $query
+            ->select(['id', 'name', 'year', 'version', 'description', 'total_credits_required', 'department_id', 'faculty_id'])
+            ->orderBy('year', 'desc')
+            ->orderBy('name', 'asc')
+            ->get();
+
+        $formattedCurricula = $curricula->map(function ($curriculum) use ($portal) {
+            return [
+                'id' => (string) $curriculum->id,
+                'name' => $curriculum->name,
+                'year' => $curriculum->year,
+                'version' => $curriculum->version,
+                'description' => $curriculum->description,
+                'total_credits_required' => $curriculum->total_credits_required,
+                'is_default' => $portal->curriculum_id === $curriculum->id,
+                'department' => $curriculum->department ? [
+                    'id' => (string) $curriculum->department->id,
+                    'name' => $curriculum->department->name,
+                ] : null,
+                'faculty' => $curriculum->faculty ? [
+                    'id' => (string) $curriculum->faculty->id,
+                    'name' => $curriculum->faculty->name,
+                ] : null,
+            ];
+        });
+
         return response()->json([
-            'curricula' => $curricula,
-            'default_curriculum_id' => $portal->curriculum_id,
+            'curricula' => $formattedCurricula,
+            'default_curriculum_id' => $portal->curriculum_id ? (string) $portal->curriculum_id : null,
+            'portal_department_id' => $portal->department_id ? (string) $portal->department_id : null,
+            'total' => $formattedCurricula->count(),
+        ]);
+    }
+
+    /**
+     * Get faculties for curriculum selection (when portal has no department)
+     */
+    public function getFaculties(): JsonResponse
+    {
+        $faculties = Faculty::select(['id', 'name'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($f) => [
+                'id' => (string) $f->id,
+                'name' => $f->name,
+            ]);
+
+        return response()->json([
+            'faculties' => $faculties,
+        ]);
+    }
+
+    /**
+     * Get departments for a faculty (for curriculum selection)
+     */
+    public function getDepartments(Request $request): JsonResponse
+    {
+        $query = Department::query()->select(['id', 'name', 'faculty_id']);
+        
+        if ($request->has('faculty_id')) {
+            $query->where('faculty_id', $request->input('faculty_id'));
+        }
+
+        $departments = $query
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($d) => [
+                'id' => (string) $d->id,
+                'name' => $d->name,
+                'faculty_id' => (string) $d->faculty_id,
+            ]);
+
+        return response()->json([
+            'departments' => $departments,
         ]);
     }
 }

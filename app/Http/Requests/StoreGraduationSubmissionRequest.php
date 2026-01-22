@@ -30,7 +30,8 @@ class StoreGraduationSubmissionRequest extends FormRequest
             'courses.*.code' => 'required|string|max:50',
             'courses.*.name' => 'nullable|string|max:255',
             'courses.*.credits' => 'required|numeric|min:0|max:12',
-            'courses.*.grade' => 'required|string|max:10',
+            // Grade is OPTIONAL - planned/in_progress courses may not have grades
+            'courses.*.grade' => 'nullable|string|max:10',
             'courses.*.status' => 'required|in:completed,in_progress,planned,failed,withdrawn',
             'courses.*.semester' => 'nullable|string|max:50',
             'courses.*.category' => 'nullable|string|max:100',
@@ -54,7 +55,6 @@ class StoreGraduationSubmissionRequest extends FormRequest
             'courses.min' => 'At least one course must be submitted.',
             'courses.*.code.required' => 'Course code is required for all courses.',
             'courses.*.credits.required' => 'Credits are required for all courses.',
-            'courses.*.grade.required' => 'Grade is required for all courses.',
             'courses.*.status.required' => 'Status is required for all courses.',
             'courses.*.status.in' => 'Invalid course status. Must be: completed, in_progress, planned, failed, or withdrawn.',
         ];

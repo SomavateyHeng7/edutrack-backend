@@ -75,6 +75,9 @@ class GraduationValidationService
         // Step 5: Validate blacklists
         $blacklistResult = $this->validateBlacklists($matchResult['matchedCourses'], $curriculumId);
         
+        // Step 5.5: Validate prerequisites and corequisites
+        $prereqResult = $this->validatePrerequisites($matchResult['matchedCourses'], $curriculum);
+        
         // Step 6: Calculate category progress
         $categoryProgress = $this->calculateCategoryProgress($matchResult['matchedCourses'], $curriculum);
         
@@ -92,13 +95,15 @@ class GraduationValidationService
             $matchResult['errors'],
             $constraintResult['errors'],
             $electiveResult['errors'],
-            $blacklistResult['errors']
+            $blacklistResult['errors'],
+            $prereqResult['errors']
         );
         
         $allWarnings = array_merge(
             $matchResult['warnings'],
             $constraintResult['warnings'] ?? [],
-            $electiveResult['warnings'] ?? []
+            $electiveResult['warnings'] ?? [],
+            $prereqResult['warnings'] ?? []
         );
 
         // Step 9: Evaluate graduation requirements
@@ -110,6 +115,12 @@ class GraduationValidationService
             $allErrors
         );
 
+        // Calculate completion percentage
+        $totalRequired = $curriculum->total_credits_required ?? 0;
+        $completionPercentage = $totalRequired > 0 
+            ? round(($creditsCompleted / $totalRequired) * 100, 1) 
+            : 0;
+
         return [
             'valid' => empty($allErrors),
             'canGraduate' => $requirements['canGraduate'],
@@ -118,6 +129,7 @@ class GraduationValidationService
                 'creditsCompleted' => $creditsCompleted,
                 'creditsInProgress' => $creditsInProgress,
                 'creditsPlanned' => $creditsPlanned,
+                'completionPercentage' => $completionPercentage,
                 'gpa' => round($gpa, 2),
                 'coursesMatched' => $matchResult['matchedCount'],
                 'coursesUnmatched' => $matchResult['unmatchedCount'],
@@ -307,6 +319,80 @@ class GraduationValidationService
         }
 
         return ['errors' => $errors];
+    }
+
+    /**
+     * Validate prerequisites and corequisites
+     */
+    private function validatePrerequisites(Collection $completedCourses, Curriculum $curriculum): array
+    {
+        $errors = [];
+        $warnings = [];
+
+        // Build a map of completed course codes with their statuses
+        $courseStatusMap = $completedCourses->keyBy(function ($course) {
+            return strtoupper($course['code']);
+        });
+
+        // Get courses that are completed or in progress (not just planned)
+        $takenCodes = $completedCourses
+            ->whereIn('status', ['completed', 'in_progress'])
+            ->pluck('code')
+            ->map(fn($c) => strtoupper($c))
+            ->toArray();
+
+        // Get all curriculum courses with their prerequisites
+        foreach ($curriculum->curriculumCourses as $curriculumCourse) {
+            $courseCode = strtoupper($curriculumCourse->course->code);
+            
+            // Only check prerequisites for courses that the student is taking/has taken
+            if (!isset($courseStatusMap[$courseCode])) {
+                continue;
+            }
+            
+            $courseStatus = $courseStatusMap[$courseCode]['status'];
+            
+            // Skip prerequisite check for planned courses (just warn)
+            if ($courseStatus === 'planned') {
+                // Check if prerequisites would be satisfied
+                foreach ($curriculumCourse->curriculumPrerequisites as $prereq) {
+                    $prereqCode = strtoupper($prereq->prerequisiteCourse->course->code ?? '');
+                    if ($prereqCode && !in_array($prereqCode, $takenCodes)) {
+                        $warnings[] = "Planned course {$courseCode} requires prerequisite {$prereqCode}";
+                    }
+                }
+                continue;
+            }
+
+            // For completed/in_progress courses, check prerequisites
+            foreach ($curriculumCourse->curriculumPrerequisites as $prereq) {
+                $prereqCode = strtoupper($prereq->prerequisiteCourse->course->code ?? '');
+                if (!$prereqCode) continue;
+
+                // Check if prerequisite is completed
+                $prereqCompleted = isset($courseStatusMap[$prereqCode]) 
+                    && $courseStatusMap[$prereqCode]['status'] === 'completed';
+                
+                if (!$prereqCompleted) {
+                    $errors[] = "Missing prerequisite: {$courseCode} requires {$prereqCode} to be completed first";
+                }
+            }
+
+            // For completed/in_progress courses, check corequisites
+            foreach ($curriculumCourse->curriculumCorequisites as $coreq) {
+                $coreqCode = strtoupper($coreq->corequisiteCourse->course->code ?? '');
+                if (!$coreqCode) continue;
+
+                // Check if corequisite is at least taken (completed or in_progress)
+                $coreqTaken = in_array($coreqCode, $takenCodes);
+                
+                if (!$coreqTaken) {
+                    $errors[] = "Missing corequisite: {$courseCode} must be taken together with {$coreqCode}";
+                }
+            }
+        }
+
+        return ['errors' => $errors, 'warnings' => $warnings];
     }
 
     /**

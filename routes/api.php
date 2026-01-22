@@ -69,6 +69,12 @@ Route::prefix('public/graduation-portals')->group(function () {
     Route::get('/{portal}/curricula', [PublicGraduationPortalController::class, 'getCurricula']);
 });
 
+// Public lookup routes for curriculum selection (when portal has no department)
+Route::prefix('public')->group(function () {
+    Route::get('/faculties', [PublicGraduationPortalController::class, 'getFaculties']);
+    Route::get('/departments', [PublicGraduationPortalController::class, 'getDepartments']);
+});
+
 // PIN-authenticated submission route (uses graduation.session middleware)
 Route::post('/graduation-portals/{portal}/submit', [GraduationSubmissionController::class, 'store'])
     ->middleware('graduation.session');

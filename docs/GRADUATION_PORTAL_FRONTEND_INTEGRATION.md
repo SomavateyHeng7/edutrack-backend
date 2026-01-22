@@ -11,6 +11,184 @@ The Laravel backend now supports PDPA-compliant graduation portal functionality.
 
 ---
 
+## Complete Submission Wizard Flow
+
+This section provides the complete step-by-step flow for the student submission wizard.
+
+### Visual Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  STEP 1: Select Portal                                                      │
+│  ───────────────────                                                        │
+│  • Fetch active portals: GET /api/public/graduation-portals                 │
+│  • Display portal cards with name, deadline, department                     │
+│  • User clicks a portal → store portalId in state                          │
+│  • Navigate to Step 2                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  STEP 2: Enter PIN                                                          │
+│  ─────────────────                                                          │
+│  • Show PIN input field                                                     │
+│  • On submit: POST /api/public/graduation-portals/{portalId}/verify-pin     │
+│    Body: { "pin": "USER_INPUT" }                                            │
+│  • On SUCCESS:                                                              │
+│    - Store sessionToken from response.session.token                         │
+│    - Store expiresAt from response.session.expires_at                       │
+│    - Navigate to Step 3                                                     │
+│  • On ERROR (401): Show "Invalid PIN", display attempts_remaining           │
+│  • On ERROR (429): Show "Rate limited", display retry_after countdown       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  STEP 3: Select Curriculum                                                  │
+│  ─────────────────────────                                                  │
+│  • Fetch curricula: GET /api/public/graduation-portals/{portalId}/curricula │
+│  • IF total > 0:                                                            │
+│    - Display curriculum cards (name, year, credits required)                │
+│    - Pre-select the one with is_default: true                               │
+│    - User selects curriculum → store curriculumId in state                  │
+│  • IF total === 0 (no department on portal):                                │
+│    - Fetch faculties: GET /api/public/faculties                             │
+│    - User selects faculty                                                   │
+│    - Fetch departments: GET /api/public/departments?faculty_id={id}         │
+│    - User selects department                                                │
+│    - Re-fetch curricula with filter: ?department_id={id}                    │
+│    - User selects curriculum → store curriculumId in state                  │
+│  • Navigate to Step 4                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  STEP 4: Upload File                                                        │
+│  ──────────────────                                                         │
+│  • Show file upload zone (accept .xlsx, .xls, .csv)                         │
+│  • On file select:                                                          │
+│    - Parse file client-side (xlsx library for Excel, papaparse for CSV)     │
+│    - Extract courses: code, name, credits, grade, semester                  │
+│    - Map grades to status (A→completed, F→failed, IP→in_progress, etc.)     │
+│    - Store parsedCourses in state                                           │
+│  • Show parse summary: "Found 67 courses"                                   │
+│  • Navigate to Step 5                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  STEP 5: Preview & Confirm                                                  │
+│  ────────────────────────                                                   │
+│  • Show student identifier input (e.g., "John Doe - 6512345")               │
+│  • Display selected curriculum name                                         │
+│  • Display parsed courses in a table:                                       │
+│    - Code | Name | Credits | Grade | Status                                 │
+│  • Show summary: Total courses, by status (completed, in_progress, etc.)    │
+│  • "Back" button to return to Step 4                                        │
+│  • "Submit" button to proceed                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  STEP 6: Submit                                                             │
+│  ──────────────                                                             │
+│  • POST /api/graduation-portals/{portalId}/submit                           │
+│    Headers: { "X-Graduation-Session-Token": sessionToken }                  │
+│    Body: {                                                                  │
+│      "student_identifier": "John Doe - 6512345",                            │
+│      "curriculum_id": curriculumId,                                         │
+│      "courses": parsedCourses,                                              │
+│      "metadata": { "file_name": "transcript.xlsx", "parsed_at": "..." }     │
+│    }                                                                        │
+│  • On SUCCESS (201):                                                        │
+│    - Show confirmation with submission ID                                   │
+│    - Show expiry countdown (30 minutes)                                     │
+│    - Display message: "Your chairperson will review within 30 minutes"     │
+│  • On ERROR (401): Session expired → redirect to Step 2                     │
+│  • On ERROR (422): Validation error → show field errors                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  STEP 7: Complete                                                           │
+│  ───────────────                                                            │
+│  • Show success message with submission details                             │
+│  • Display: Submission ID, Expiry time, Selected curriculum                 │
+│  • Inform: "Data will be automatically deleted after 30 minutes (PDPA)"    │
+│  • Option: "Submit Another" → return to Step 1                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### State Management
+
+Store these values throughout the wizard:
+
+```typescript
+interface WizardState {
+  // Step 1
+  portalId: string | null;
+  portalName: string | null;
+  
+  // Step 2
+  sessionToken: string | null;
+  sessionExpiresAt: string | null;  // ISO datetime
+  
+  // Step 3
+  curriculumId: string | null;
+  curriculumName: string | null;
+  
+  // Step 4
+  parsedCourses: Course[] | null;
+  fileName: string | null;
+  
+  // Step 5
+  studentIdentifier: string | null;
+  
+  // Step 6/7
+  submissionId: string | null;
+  submissionExpiresAt: string | null;
+}
+```
+
+### Error Handling at Each Step
+
+| Step | Error Code | User Action |
+|------|------------|-------------|
+| 2 | `INVALID_PIN` | Show error, display attempts remaining |
+| 2 | `RATE_LIMITED` | Show countdown timer, disable input |
+| 2 | `PORTAL_INACTIVE` | Show message, redirect to Step 1 |
+| 3 | Network error | Retry button |
+| 6 | `SESSION_EXPIRED` | Show message, redirect to Step 2 |
+| 6 | `SESSION_TOKEN_MISSING` | Redirect to Step 2 |
+| 6 | 422 validation | Show field-level errors, stay on Step 5 |
+
+### Session Expiry Handling
+
+```typescript
+// Start countdown after PIN verification
+useEffect(() => {
+  if (!sessionExpiresAt) return;
+  
+  const interval = setInterval(() => {
+    const remaining = new Date(sessionExpiresAt).getTime() - Date.now();
+    
+    if (remaining <= 0) {
+      // Session expired
+      clearInterval(interval);
+      showToast("Session expired. Please re-enter PIN.");
+      redirectToStep(2);
+    } else if (remaining <= 60000) {
+      // 1 minute warning
+      showWarning("Session expires in less than 1 minute!");
+    }
+  }, 1000);
+  
+  return () => clearInterval(interval);
+}, [sessionExpiresAt]);
+```
+
+---
+
 ## Authentication Flow
 
 ### Student Submission Flow (No Login Required)
@@ -42,7 +220,9 @@ The Laravel backend now supports PDPA-compliant graduation portal functionality.
 | `GET` | `/api/public/graduation-portals` | List active portals |
 | `GET` | `/api/public/graduation-portals/{id}` | Portal details |
 | `POST` | `/api/public/graduation-portals/{id}/verify-pin` | Verify PIN, get session token |
-| `GET` | `/api/public/graduation-portals/{id}/curricula` | Get curricula for portal |
+| `GET` | `/api/public/graduation-portals/{id}/curricula` | Get curricula for portal's department |
+| `GET` | `/api/public/faculties` | List all faculties (for curriculum selection) |
+| `GET` | `/api/public/departments` | List departments (optionally filter by faculty_id) |
 
 ### Session-Authenticated Endpoints (Session Token in Header)
 
@@ -68,6 +248,94 @@ The Laravel backend now supports PDPA-compliant graduation portal functionality.
 
 ---
 
+## Curriculum Selection APIs
+
+### Get Curricula for Portal
+
+Returns all active curricula in the portal's department. If portal has no department, returns empty (use filters or faculty/department endpoints).
+
+```
+GET /api/public/graduation-portals/{portal_id}/curricula
+GET /api/public/graduation-portals/{portal_id}/curricula?faculty_id={uuid}
+GET /api/public/graduation-portals/{portal_id}/curricula?department_id={uuid}
+```
+
+**Response:**
+```json
+{
+  "curricula": [
+    {
+      "id": "019b2d53-f1da-70ff-8814-38ddac90427c",
+      "name": "2022 BSCS (For 653 onward)",
+      "year": 2022,
+      "version": null,
+      "description": "For students batch 653 onwards",
+      "total_credits_required": 139,
+      "is_default": true,
+      "department": {
+        "id": "019b1831-1b79-70be-8daa-8e7347d72a47",
+        "name": "Computer Science"
+      },
+      "faculty": {
+        "id": "019b1830-fa12-7152-b0e1-f04e7c27af89",
+        "name": "Faculty of Science"
+      }
+    },
+    {
+      "id": "019b2d57-2663-7168-bd9c-af91a0c14ddf",
+      "name": "2022 BSCS (For 651-652)",
+      "year": 2022,
+      "version": null,
+      "description": "For students batch 651-652",
+      "total_credits_required": 139,
+      "is_default": false,
+      "department": {...},
+      "faculty": {...}
+    }
+  ],
+  "default_curriculum_id": "019b2d53-f1da-70ff-8814-38ddac90427c",
+  "portal_department_id": "019b1831-1b79-70be-8daa-8e7347d72a47",
+  "total": 2
+}
+```
+
+### Get Faculties (for curriculum selection fallback)
+
+Use when portal has no department assigned and student needs to select manually.
+
+```
+GET /api/public/faculties
+```
+
+**Response:**
+```json
+{
+  "faculties": [
+    { "id": "uuid", "name": "Faculty of Science" },
+    { "id": "uuid", "name": "Faculty of Engineering" }
+  ]
+}
+```
+
+### Get Departments (filter by faculty)
+
+```
+GET /api/public/departments
+GET /api/public/departments?faculty_id={uuid}
+```
+
+**Response:**
+```json
+{
+  "departments": [
+    { "id": "uuid", "name": "Computer Science", "faculty_id": "uuid" },
+    { "id": "uuid", "name": "Information Technology", "faculty_id": "uuid" }
+  ]
+}
+```
+
+---
+
 ## Request/Response Formats
 
 ### Submission Payload Format
@@ -78,7 +346,7 @@ The Laravel backend now supports PDPA-compliant graduation portal functionality.
 
 interface SubmissionPayload {
   student_identifier: string;  // "John Doe - 6512345"
-  curriculum_id: string;       // UUID
+  curriculum_id: string;       // UUID - SELECTED BY STUDENT
   courses: Course[];
   metadata?: {
     parsed_at?: string;
@@ -91,12 +359,14 @@ interface Course {
   code: string;        // "CS 101"
   name?: string;       // "Introduction to Computing"
   credits: number;     // 3
-  grade: string;       // "A", "B+", "IP", "P"
+  grade?: string;      // "A", "B+", "IP", "P" - OPTIONAL for planned courses
   status: "completed" | "in_progress" | "planned" | "failed" | "withdrawn";
   semester?: string;   // "1/2024"
   category?: string;   // "Core", "Major Elective"
 }
 ```
+
+> **Note:** Grade is OPTIONAL. Planned courses and in-progress courses may not have grades assigned yet. The backend will still accept the submission and calculate completion percentage.
 
 ### Public Portal List Response
 
@@ -201,13 +471,14 @@ interface Course {
     "id": "uuid",
     "status": "validated",
     "validation_result": {
-      "valid": true,
-      "canGraduate": true,
+      "valid": false,
+      "canGraduate": false,
       "summary": {
-        "totalCreditsRequired": 120,
-        "creditsCompleted": 118,
-        "creditsInProgress": 6,
-        "creditsPlanned": 3,
+        "totalCreditsRequired": 139,
+        "creditsCompleted": 85,
+        "creditsInProgress": 12,
+        "creditsPlanned": 42,
+        "completionPercentage": 61.2,
         "gpa": 3.45,
         "coursesMatched": 42,
         "coursesUnmatched": 3
@@ -216,25 +487,25 @@ interface Course {
         "Core": {
           "name": "Core",
           "creditsRequired": 45,
-          "creditsCompleted": 45,
-          "percentComplete": 100,
-          "isComplete": true
+          "creditsCompleted": 40,
+          "percentComplete": 88.9,
+          "isComplete": false
         },
         "Major Elective": {
           "name": "Major Elective",
           "creditsRequired": 15,
-          "creditsCompleted": 12,
-          "percentComplete": 80,
+          "creditsCompleted": 9,
+          "percentComplete": 60,
           "isComplete": false
         }
       },
       "requirements": {
         "totalCredits": {
           "name": "Total Credits",
-          "required": 120,
-          "current": 118,
+          "required": 139,
+          "current": 85,
           "met": false,
-          "message": "Need 2 more credits"
+          "message": "Need 54 more credits"
         },
         "gpa": {
           "name": "Minimum GPA",
@@ -244,14 +515,24 @@ interface Course {
           "message": "GPA of 3.45 meets minimum 2.0"
         }
       },
-      "errors": [],
-      "warnings": ["Course CS 999 not found in curriculum"],
+      "errors": [
+        "Missing prerequisite: CS301 requires CS201 to be completed first",
+        "Missing corequisite: CS350 must be taken together with CS351",
+        "Missing 5 credits for Core requirement"
+      ],
+      "warnings": [
+        "Course XYZ999 not found in curriculum",
+        "Planned course CS401 requires prerequisite CS301",
+        "12 credits still in progress"
+      ],
       "matchedCourses": [...],
       "unmatchedCourses": [...]
     }
   }
 }
 ```
+
+> **Note:** The backend accepts submissions even with errors. Students can submit their current progress (including planned courses without grades), and the CP/Advisor can review the completion percentage and provide guidance.
 
 ### Reject Submission Request
 
@@ -314,19 +595,26 @@ headers: {
    - Show attempts remaining on failure
    - Handle rate limiting
 
-3. **Submission Form**
+3. **Curriculum Selection Step** ← NEW
+   - Fetch curricula from `/api/public/graduation-portals/{id}/curricula`
+   - If curricula returned, show selection cards/dropdown
+   - If empty (portal has no department), show faculty → department → curriculum cascade
+   - Highlight `is_default: true` curriculum if exists
+   - Store selected `curriculum_id` for submission
+
+4. **Submission Form**
    - Student identifier input
-   - Curriculum selector (pre-filled from portal)
+   - Show selected curriculum name (from step 3)
    - File upload (Excel/CSV)
    - File preview before submit
 
-4. **File Parser Utility**
+5. **File Parser Utility**
    - Parse Excel using `xlsx` library
    - Parse CSV using `papaparse`
    - Convert to JSON format
    - Validate required columns
 
-5. **Submission Confirmation**
+6. **Submission Confirmation**
    - Show submission ID
    - Show expiry countdown
 
@@ -358,6 +646,79 @@ headers: {
 
 ---
 
+## Curriculum Selection Flow
+
+### Scenario A: Portal has department assigned (most common)
+
+```
+1. GET /api/public/graduation-portals/{id}/curricula
+   → Returns all curricula in portal's department
+   → Show list for student to select
+   → Pre-select the one with is_default: true
+```
+
+### Scenario B: Portal has no department (fallback flow)
+
+```
+1. GET /api/public/graduation-portals/{id}/curricula
+   → Returns empty array (total: 0)
+
+2. Show Faculty dropdown:
+   GET /api/public/faculties
+   → Student selects faculty
+
+3. Show Department dropdown:
+   GET /api/public/departments?faculty_id={selected_faculty_id}
+   → Student selects department
+
+4. Fetch curricula with filter:
+   GET /api/public/graduation-portals/{id}/curricula?department_id={selected_department_id}
+   → Returns curricula in that department
+   → Student selects curriculum
+```
+
+### TypeScript Example
+
+```typescript
+interface Curriculum {
+  id: string;
+  name: string;
+  year: number;
+  version: string | null;
+  description: string | null;
+  total_credits_required: number;
+  is_default: boolean;
+  department: { id: string; name: string } | null;
+  faculty: { id: string; name: string } | null;
+}
+
+interface CurriculaResponse {
+  curricula: Curriculum[];
+  default_curriculum_id: string | null;
+  portal_department_id: string | null;
+  total: number;
+}
+
+// After PIN verification, fetch curricula
+async function fetchCurricula(portalId: string): Promise<CurriculaResponse> {
+  const res = await fetch(`/api/public/graduation-portals/${portalId}/curricula`);
+  return res.json();
+}
+
+// Check if we need fallback flow
+const { curricula, total, portal_department_id } = await fetchCurricula(portalId);
+
+if (total === 0 && !portal_department_id) {
+  // Show faculty/department selection
+  showFallbackCurriculumSelection();
+} else {
+  // Show curriculum cards
+  showCurriculumCards(curricula);
+}
+```
+
+---
+
 ## Grade to Status Mapping
 
 Frontend should map grades to status before submission:
@@ -379,3 +740,4 @@ Frontend should map grades to status before submission:
 3. **File Parsing**: Must be done client-side, send JSON not files
 4. **Session Duration**: 15 minutes from PIN verification
 5. **Rate Limiting**: 5 PIN attempts per 15 minutes per IP
+6. **Curriculum Selection**: Student MUST select curriculum - it's required for submission
