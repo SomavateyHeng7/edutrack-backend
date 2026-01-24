@@ -56,6 +56,7 @@ class TentativeScheduleController extends Controller
                     'department' => $schedule->department_name,
                     'batch' => $schedule->batch,
                     'coursesCount' => $schedule->courses->count(),
+                    'isPublished' => $schedule->is_published,
                     'createdAt' => $schedule->created_at->toISOString(),
                     'updatedAt' => $schedule->updated_at->toISOString(),
                     'curriculum' => $schedule->curriculum ? [
@@ -390,6 +391,60 @@ class TentativeScheduleController extends Controller
     }
     
     /**
+     * Toggle publish status of a tentative schedule
+     * 
+     * @param Request $request
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function togglePublish(Request $request, $id)
+    {
+        try {
+            $schedule = TentativeSchedule::findOrFail($id);
+            
+            // Verify access
+            $user = $request->user();
+            if ($user->role === 'CHAIRPERSON' && 
+                $user->department_id !== $schedule->department_id) {
+                return response()->json([
+                    'error' => ['message' => 'Access denied']
+                ], 403);
+            }
+            
+            // Toggle publish status
+            $schedule->is_published = !$schedule->is_published;
+            $schedule->save();
+            
+            $status = $schedule->is_published ? 'published' : 'unpublished';
+            
+            return response()->json([
+                'message' => "Tentative schedule {$status} successfully",
+                'schedule' => [
+                    'id' => $schedule->id,
+                    'isPublished' => $schedule->is_published,
+                ],
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => ['message' => 'Tentative schedule not found']
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Error toggling publish status: ' . $e->getMessage(), [
+                'scheduleId' => $id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to toggle publish status',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+    
+    /**
      * Format schedule response
      * 
      * @param TentativeSchedule $schedule
@@ -405,6 +460,7 @@ class TentativeScheduleController extends Controller
             'versionTimestamp' => $schedule->version_timestamp,
             'department' => $schedule->department_name,
             'batch' => $schedule->batch,
+            'isPublished' => $schedule->is_published,
             'createdAt' => $schedule->created_at->toISOString(),
             'updatedAt' => $schedule->updated_at->toISOString(),
             'curriculum' => $schedule->curriculum ? [
@@ -417,7 +473,7 @@ class TentativeScheduleController extends Controller
                     'id' => $scheduleCourse->id,
                     'courseId' => $scheduleCourse->course_id,
                     'code' => $scheduleCourse->course->code,
-                    'name' => $scheduleCourse->course->title,
+                    'name' => $scheduleCourse->course->name,
                     'credits' => $scheduleCourse->course->credits,
                     'description' => $scheduleCourse->course->description,
                     'section' => $scheduleCourse->section,
@@ -429,4 +485,170 @@ class TentativeScheduleController extends Controller
             }),
         ];
     }
+
+    /**
+     * Get published tentative schedules (Student accessible)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function publishedSchedules(Request $request)
+    {
+        try {
+            // Build query - only published schedules
+            $query = TentativeSchedule::with(['curriculum', 'courses'])
+                ->where('is_published', true);
+            
+            // Search filter
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('semester', 'like', "%{$search}%")
+                      ->orWhere('batch', 'like', "%{$search}%");
+                });
+            }
+            
+            // Pagination
+            $perPage = $request->get('limit', 20);
+            $schedules = $query->orderBy('created_at', 'desc')->paginate($perPage);
+            
+            // Format schedule data
+            $formattedSchedules = $schedules->map(function ($schedule) {
+                return [
+                    'id' => $schedule->id,
+                    'name' => $schedule->name,
+                    'semester' => $schedule->semester,
+                    'year' => $schedule->year ?? '',
+                    'version' => $schedule->version,
+                    'department' => $schedule->department_name,
+                    'batch' => $schedule->batch,
+                    'isPublished' => true,
+                    'coursesCount' => $schedule->courses->count(),
+                    'createdAt' => $schedule->created_at->toISOString(),
+                    'updatedAt' => $schedule->updated_at->toISOString(),
+                    'curriculum' => $schedule->curriculum ? [
+                        'id' => $schedule->curriculum->id,
+                        'name' => $schedule->curriculum->name,
+                        'year' => $schedule->curriculum->year,
+                    ] : null,
+                    'curriculumName' => $schedule->curriculum ? $schedule->curriculum->name : null,
+                    'curriculumYear' => $schedule->curriculum ? $schedule->curriculum->year : null,
+                ];
+            });
+            
+            return response()->json([
+                'schedules' => $formattedSchedules,
+                'pagination' => [
+                    'total' => $schedules->total(),
+                    'page' => $schedules->currentPage(),
+                    'limit' => $schedules->perPage(),
+                    'totalPages' => $schedules->lastPage(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching published schedules: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error fetching published schedules',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get a specific published tentative schedule (Student accessible)
+     * 
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function showPublished($id)
+    {
+        try {
+            $schedule = TentativeSchedule::with(['curriculum', 'courses.course'])
+                ->where('id', $id)
+                ->where('is_published', true)
+                ->first();
+            
+            if (!$schedule) {
+                return response()->json([
+                    'message' => 'Published schedule not found'
+                ], 404);
+            }
+            
+            Log::info('Schedule found:', ['id' => $schedule->id, 'courses_count' => $schedule->courses->count()]);
+            
+            // Format detailed schedule data with course information
+            $formattedSchedule = [
+                'id' => $schedule->id,
+                'name' => $schedule->name,
+                'semester' => $schedule->semester,
+                'year' => $schedule->year ?? '',
+                'version' => $schedule->version,
+                'department' => $schedule->department_name,
+                'batch' => $schedule->batch,
+                'isPublished' => true,
+                'createdAt' => $schedule->created_at->toISOString(),
+                'updatedAt' => $schedule->updated_at->toISOString(),
+                'curriculumName' => $schedule->curriculum ? $schedule->curriculum->name : null,
+                'curriculumYear' => $schedule->curriculum ? $schedule->curriculum->year : null,
+                'courses' => $schedule->courses->map(function ($scheduleCourse) {
+                    $days = null;
+                    $timeStart = null;
+                    $timeEnd = null;
+                    
+                    // Parse days if available
+                    if ($scheduleCourse->days) {
+                        $days = is_string($scheduleCourse->days) 
+                            ? json_decode($scheduleCourse->days) 
+                            : $scheduleCourse->days;
+                    }
+                    
+                    // Parse time if available
+                    if ($scheduleCourse->time && str_contains($scheduleCourse->time, '-')) {
+                        $timeParts = explode('-', $scheduleCourse->time);
+                        $timeStart = trim($timeParts[0]);
+                        $timeEnd = trim($timeParts[1] ?? '');
+                    }
+                    
+                    // Get first day if multiple days
+                    $day = null;
+                    if (is_array($days) && count($days) > 0) {
+                        $day = $days[0];
+                    }
+                    
+                    return [
+                        'id' => $scheduleCourse->id,
+                        'course' => [
+                            'id' => $scheduleCourse->course->id,
+                            'code' => $scheduleCourse->course->code,
+                            'title' => $scheduleCourse->course->name,
+                            'credits' => $scheduleCourse->course->credits,
+                        ],
+                        'section' => $scheduleCourse->section,
+                        'day' => $day,
+                        'days' => $days,
+                        'timeStart' => $timeStart,
+                        'timeEnd' => $timeEnd,
+                        'time' => $scheduleCourse->time,
+                        'room' => $scheduleCourse->room ?? 'TBA',
+                        'instructor' => $scheduleCourse->instructor,
+                        'capacity' => $scheduleCourse->seat_limit ?? 0,
+                        'enrolled' => 0, // Default to 0 for now
+                        'courseType' => $scheduleCourse->course_type ?? 'Core',
+                    ];
+                }),
+            ];
+            
+            return response()->json([
+                'schedule' => $formattedSchedule
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching published schedule: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error fetching published schedule',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
+

@@ -22,12 +22,14 @@ class TentativeSchedule extends Model
         'batch',
         'curriculum_id',
         'created_by',
+        'is_published',
     ];
 
     protected $casts = [
         'version_timestamp' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'is_published' => 'boolean',
     ];
 
     /**

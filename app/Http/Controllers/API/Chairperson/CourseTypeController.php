@@ -52,6 +52,7 @@ class CourseTypeController extends Controller
                 'name' => $t->name,
                 'color' => $t->color,
                 'departmentId' => $t->department_id,
+                'parentId' => $t->parent_id,
                 'seeded' => (bool) $t->seeded, // 👈 DB truth
                 'createdAt' => $t->created_at,
                 'updatedAt' => $t->updated_at,
@@ -108,6 +109,7 @@ class CourseTypeController extends Controller
             'name' => 'required|string|max:50',
             'color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'departmentId' => 'nullable|string',
+            'parentId' => 'nullable|string|exists:course_types,id',
         ]);
 
         $faculty = $user->faculty->load('departments');
@@ -126,6 +128,7 @@ class CourseTypeController extends Controller
             'name' => $data['name'],
             'color' => $data['color'],
             'department_id' => $departmentId,
+            'parent_id' => $data['parentId'] ?? null,
         ]);
 
         return response()->json($courseType, 201);
@@ -154,9 +157,14 @@ class CourseTypeController extends Controller
                 )->ignore($courseType->id)
             ],
             'color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'parentId' => 'nullable|string|exists:course_types,id',
         ]);
 
-        $courseType->update($data);
+        $courseType->update([
+            'name' => $data['name'],
+            'color' => $data['color'],
+            'parent_id' => $data['parentId'] ?? null,
+        ]);
 
         return response()->json($courseType);
     }

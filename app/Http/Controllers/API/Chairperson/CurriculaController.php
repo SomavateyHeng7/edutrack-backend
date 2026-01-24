@@ -592,6 +592,7 @@ class CurriculaController extends Controller
                     CurriculumConcentration::create([
                         'curriculum_id' => $newCurriculum->id,
                         'concentration_id' => $concentration->concentration_id,
+                        'required_courses' => $concentration->required_courses,
                     ]);
                 }
 
@@ -607,9 +608,11 @@ class CurriculaController extends Controller
                 foreach ($originalCurriculum->curriculumConstraints as $constraint) {
                     CurriculumConstraint::create([
                         'curriculum_id' => $newCurriculum->id,
-                        'constraint_id' => $constraint->constraint_id,
-                        'min_value' => $constraint->min_value,
-                        'max_value' => $constraint->max_value,
+                        'type' => $constraint->type,
+                        'name' => $constraint->name,
+                        'description' => $constraint->description,
+                        'is_required' => $constraint->is_required,
+                        'config' => $constraint->config,
                     ]);
                 }
 

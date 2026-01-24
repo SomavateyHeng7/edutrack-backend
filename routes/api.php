@@ -82,17 +82,25 @@ Route::post('/graduation-portals/{portal}/submit', [GraduationSubmissionControll
 // Available Courses
 Route::get('/available-courses', [AvailableCourseController::class, 'index']);
 
+// Published Tentative Schedules (Public - No Authentication Required)
+Route::prefix('published-schedules')->group(function () {
+    Route::get('/', [TentativeScheduleController::class, 'publishedSchedules']);
+    Route::get('/{id}', [TentativeScheduleController::class, 'showPublished']);
+});
+
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/user', function (Request $request) {
-    $user = $request->user();
-    if ($user) {
-        return response()->json($user->load(['faculty', 'department']));
-    }
-    return response()->json(null);
-    });
 
 Route::middleware(['auth:sanctum'])->group(function () {
+    
+    // Get authenticated user
+    Route::get('/user', function (Request $request) {
+        $user = $request->user();
+        if ($user) {
+            return response()->json($user->load(['faculty', 'department']));
+        }
+        return response()->json(null, 401);
+    });
     
     // Concentrations
     Route::get('/concentrations', [\App\Http\Controllers\API\Chairperson\ConcentrationController::class, 'index']);
@@ -317,6 +325,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/{id}', [TentativeScheduleController::class, 'show']);
         Route::put('/{id}', [TentativeScheduleController::class, 'update']);
         Route::delete('/{id}', [TentativeScheduleController::class, 'destroy']);
+        Route::post('/{id}/toggle-publish', [TentativeScheduleController::class, 'togglePublish']);
     });
 
     // Graduation Portals (Chairperson)
