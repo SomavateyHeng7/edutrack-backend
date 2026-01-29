@@ -19,6 +19,7 @@ class CourseTypeController extends Controller
 {
     /* =====================================================
      * GET /api/course-types
+     * Returns flat list with hierarchy metadata
      * ===================================================== */
     public function index(Request $request)
     {
@@ -41,6 +42,8 @@ class CourseTypeController extends Controller
         }
 
         $courseTypes = CourseType::where('department_id', $departmentId)
+            ->withCount(['children', 'departmentCourseTypes as usage_count'])
+            ->orderBy('position')
             ->orderBy('name')
             ->get();
 
@@ -52,13 +55,52 @@ class CourseTypeController extends Controller
                 'name' => $t->name,
                 'color' => $t->color,
                 'departmentId' => $t->department_id,
-                'parentId' => $t->parent_id,
-                'seeded' => (bool) $t->seeded, // 👈 DB truth
+                'parentId' => $t->parent_course_type_id,
+                'position' => $t->position,
+                'childCount' => $t->children_count,
+                'usageCount' => $t->usage_count,
+                'seeded' => (bool) $t->seeded,
                 'createdAt' => $t->created_at,
                 'updatedAt' => $t->updated_at,
             ])->values(),
-            'seeded' => $seeded,   // 👈 DB-derived
+            'seeded' => $seeded,
             'total' => $courseTypes->count(),
+        ]);
+    }
+
+    /* =====================================================
+     * GET /api/course-types/tree
+     * Returns nested tree structure for efficient rendering
+     * ===================================================== */
+    public function tree(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Chairperson access required'], 403);
+        }
+
+        $faculty = $user->faculty?->load('departments');
+        if (!$faculty || $faculty->departments->isEmpty()) {
+            return response()->json(['error' => 'User faculty or department not found'], 404);
+        }
+
+        $departmentId = $request->query('departmentId')
+            ?? $faculty->departments->first()->id;
+
+        if (!$faculty->departments->pluck('id')->contains($departmentId)) {
+            return response()->json(['error' => 'Department not accessible'], 403);
+        }
+
+        $courseTypes = CourseType::where('department_id', $departmentId)
+            ->withCount('departmentCourseTypes as usage_count')
+            ->orderBy('position')
+            ->get();
+
+        $tree = CourseType::buildTree($courseTypes);
+
+        return response()->json([
+            'tree' => $tree,
         ]);
     }
 
@@ -78,6 +120,7 @@ class CourseTypeController extends Controller
 
         $courseType = CourseType::where('id', $id)
             ->whereIn('department_id', $facultyDepartmentIds)
+            ->withCount(['children', 'departmentCourseTypes as usage_count'])
             ->first();
 
         if (!$courseType) {
@@ -89,6 +132,11 @@ class CourseTypeController extends Controller
             'name' => $courseType->name,
             'color' => $courseType->color,
             'departmentId' => $courseType->department_id,
+            'parentId' => $courseType->parent_course_type_id,
+            'position' => $courseType->position,
+            'childCount' => $courseType->children_count,
+            'usageCount' => $courseType->usage_count,
+            'seeded' => (bool) $courseType->seeded,
             'createdAt' => $courseType->created_at,
             'updatedAt' => $courseType->updated_at,
         ]);
@@ -110,6 +158,7 @@ class CourseTypeController extends Controller
             'color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'departmentId' => 'nullable|string',
             'parentId' => 'nullable|string|exists:course_types,id',
+            'position' => 'nullable|integer|min:0',
         ]);
 
         $faculty = $user->faculty->load('departments');
@@ -120,22 +169,54 @@ class CourseTypeController extends Controller
             return response()->json(['error' => 'Department not accessible'], 403);
         }
 
-        if (CourseType::where('name', $data['name'])->where('department_id', $departmentId)->exists()) {
-            return response()->json(['error' => 'Course type name already exists'], 409);
+        // Check unique name within same parent level
+        $existingQuery = CourseType::where('name', $data['name'])
+            ->where('department_id', $departmentId);
+        
+        if (isset($data['parentId'])) {
+            $existingQuery->where('parent_course_type_id', $data['parentId']);
+        } else {
+            $existingQuery->whereNull('parent_course_type_id');
         }
+
+        if ($existingQuery->exists()) {
+            return response()->json(['error' => 'Course type name already exists at this level'], 409);
+        }
+
+        // Calculate next position if not provided
+        $position = $data['position'] ?? CourseType::where('department_id', $departmentId)
+            ->where('parent_course_type_id', $data['parentId'] ?? null)
+            ->max('position') + 1;
 
         $courseType = CourseType::create([
             'name' => $data['name'],
             'color' => $data['color'],
             'department_id' => $departmentId,
-            'parent_id' => $data['parentId'] ?? null,
+            'parent_course_type_id' => $data['parentId'] ?? null,
+            'position' => $position,
         ]);
 
-        return response()->json($courseType, 201);
+        // Return with computed counts
+        $courseType->loadCount(['children', 'departmentCourseTypes as usage_count']);
+
+        return response()->json([
+            'id' => $courseType->id,
+            'name' => $courseType->name,
+            'color' => $courseType->color,
+            'departmentId' => $courseType->department_id,
+            'parentId' => $courseType->parent_course_type_id,
+            'position' => $courseType->position,
+            'childCount' => $courseType->children_count ?? 0,
+            'usageCount' => $courseType->usage_count ?? 0,
+            'seeded' => (bool) $courseType->seeded,
+            'createdAt' => $courseType->created_at,
+            'updatedAt' => $courseType->updated_at,
+        ], 201);
     }
 
     /* =====================================================
      * PUT /api/course-types/{id}
+     * With cycle detection for hierarchy
      * ===================================================== */
     public function update(Request $request, $id)
     {
@@ -151,26 +232,72 @@ class CourseTypeController extends Controller
         }
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:50',
-                Rule::unique('course_types')->where(fn ($q) =>
-                    $q->where('department_id', $courseType->department_id)
-                )->ignore($courseType->id)
-            ],
+            'name' => ['required', 'string', 'max:50'],
             'color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'parentId' => 'nullable|string|exists:course_types,id',
+            'position' => 'nullable|integer|min:0',
         ]);
+
+        // Cycle detection: cannot set parentId to self or any descendant
+        if (isset($data['parentId'])) {
+            if ($data['parentId'] === $id) {
+                return response()->json([
+                    'error' => 'Cannot set a course type as its own parent',
+                    'code' => 'CYCLE_DETECTED'
+                ], 422);
+            }
+
+            if ($courseType->isDescendant($data['parentId'])) {
+                return response()->json([
+                    'error' => 'Cannot set a descendant as parent (would create cycle)',
+                    'code' => 'CYCLE_DETECTED'
+                ], 422);
+            }
+        }
+
+        // Check unique name within same parent level (excluding self)
+        $existingQuery = CourseType::where('name', $data['name'])
+            ->where('department_id', $courseType->department_id)
+            ->where('id', '!=', $id);
+        
+        if (isset($data['parentId'])) {
+            $existingQuery->where('parent_course_type_id', $data['parentId']);
+        } else {
+            $existingQuery->whereNull('parent_course_type_id');
+        }
+
+        if ($existingQuery->exists()) {
+            return response()->json(['error' => 'Course type name already exists at this level'], 409);
+        }
 
         $courseType->update([
             'name' => $data['name'],
             'color' => $data['color'],
-            'parent_id' => $data['parentId'] ?? null,
+            'parent_course_type_id' => $data['parentId'] ?? null,
+            'position' => $data['position'] ?? $courseType->position,
         ]);
 
-        return response()->json($courseType);
+        // Return with computed counts
+        $courseType->loadCount(['children', 'departmentCourseTypes as usage_count']);
+
+        return response()->json([
+            'id' => $courseType->id,
+            'name' => $courseType->name,
+            'color' => $courseType->color,
+            'departmentId' => $courseType->department_id,
+            'parentId' => $courseType->parent_course_type_id,
+            'position' => $courseType->position,
+            'childCount' => $courseType->children_count ?? 0,
+            'usageCount' => $courseType->usage_count ?? 0,
+            'seeded' => (bool) $courseType->seeded,
+            'createdAt' => $courseType->created_at,
+            'updatedAt' => $courseType->updated_at,
+        ]);
     }
 
     /* =====================================================
      * DELETE /api/course-types/{id}
+     * Handles children by promoting them to root (ON DELETE SET NULL)
      * ===================================================== */
     public function destroy($id)
     {
@@ -179,6 +306,7 @@ class CourseTypeController extends Controller
 
         $courseType = CourseType::where('id', $id)
             ->whereIn('department_id', $facultyDepartmentIds)
+            ->withCount('children')
             ->first();
 
         if (!$courseType) {
@@ -186,12 +314,70 @@ class CourseTypeController extends Controller
         }
 
         if (DepartmentCourseType::where('course_type_id', $id)->exists()) {
-            return response()->json(['error' => 'Course type is in use'], 409);
+            return response()->json(['error' => 'Course type is in use by courses'], 409);
         }
 
+        $childrenCount = $courseType->children_count;
+
+        // Children will have parent_course_type_id set to NULL (become roots) 
+        // due to ON DELETE SET NULL foreign key constraint
         $courseType->delete();
 
-        return response()->json(['message' => 'Course type deleted']);
+        return response()->json([
+            'message' => 'Course type deleted',
+            'childrenPromoted' => $childrenCount,
+        ]);
+    }
+
+    /* =====================================================
+     * POST /api/course-types/reorder
+     * Bulk update positions and parent relationships
+     * ===================================================== */
+    public function reorder(Request $request)
+    {
+        $user = Auth::user();
+
+        if (!$user || $user->role !== 'CHAIRPERSON') {
+            return response()->json(['error' => 'Chairperson access required'], 403);
+        }
+
+        $data = $request->validate([
+            'updates' => 'required|array',
+            'updates.*.id' => 'required|string|exists:course_types,id',
+            'updates.*.parentId' => 'nullable|string|exists:course_types,id',
+            'updates.*.position' => 'required|integer|min:0',
+        ]);
+
+        $facultyDepartmentIds = $user->department->faculty->departments->pluck('id');
+
+        DB::transaction(function () use ($data, $facultyDepartmentIds) {
+            foreach ($data['updates'] as $update) {
+                $courseType = CourseType::where('id', $update['id'])
+                    ->whereIn('department_id', $facultyDepartmentIds)
+                    ->first();
+
+                if (!$courseType) {
+                    continue;
+                }
+
+                // Cycle detection
+                if (isset($update['parentId'])) {
+                    if ($update['parentId'] === $update['id']) {
+                        continue; // Skip self-reference
+                    }
+                    if ($courseType->isDescendant($update['parentId'])) {
+                        continue; // Skip cycle-creating updates
+                    }
+                }
+
+                $courseType->update([
+                    'parent_course_type_id' => $update['parentId'] ?? null,
+                    'position' => $update['position'],
+                ]);
+            }
+        });
+
+        return response()->json(['success' => true]);
     }
 
     /* =====================================================

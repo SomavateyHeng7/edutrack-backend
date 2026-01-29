@@ -13,6 +13,7 @@ class DepartmentCourseType extends Model
     protected $fillable = [
         'course_id',
         'department_id',
+        'curriculum_id',
         'course_type_id',
         'assigned_at',
         'assigned_by_id',
@@ -30,6 +31,11 @@ class DepartmentCourseType extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function curriculum(): BelongsTo
+    {
+        return $this->belongsTo(Curriculum::class);
     }
 
     public function courseType(): BelongsTo

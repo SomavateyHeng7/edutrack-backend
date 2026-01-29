@@ -198,12 +198,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/{course}/corequisites/{relation}', [CourseController::class, 'removeCorequisite']);
 });
 
-    // Course Types
+    // Course Types (with hierarchy support)
     Route::prefix('course-types')->group(function () {
         Route::get('/', [CourseTypeController::class, 'index']);
+        Route::get('/tree', [CourseTypeController::class, 'tree']);
         Route::post('/', [CourseTypeController::class, 'store']);
 
         Route::post('/assign', [CourseTypeController::class, 'bulkAssign']);
+        Route::post('/reorder', [CourseTypeController::class, 'reorder']);
 
         Route::get('/{id}', [CourseTypeController::class, 'show']);
         Route::put('/{id}', [CourseTypeController::class, 'update']);
@@ -261,6 +263,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
             'constraintsEnabled' => true,
             'blacklistsEnabled' => true,
             'concentrationsEnabled' => true,
+            // Course Type Hierarchy
+            'enableHierarchy' => true,
+            'enablePools' => false,
+            'enableGenericLists' => true,
+            'showLegacyBridgeBanner' => true,
         ]);
     });
 

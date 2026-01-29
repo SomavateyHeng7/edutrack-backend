@@ -53,7 +53,7 @@ class CurriculumController extends Controller
     {
         $curriculum = Curriculum::with([
             'department:id,name,code',
-            'curriculumCourses.course',
+            'curriculumCourses.course.departmentCourseTypes.courseType',
             'curriculumConcentrations',
             'curriculumBlacklists',
             'curriculumConstraints',
@@ -63,6 +63,26 @@ class CurriculumController extends Controller
         if (!$curriculum) {
             return response()->json(['error' => 'Curriculum not found'], 404);
         }
+
+        // Transform to include course_type on each course (scoped to this curriculum)
+        $curriculum->curriculumCourses->each(function ($cc) use ($curriculum) {
+            $dct = $cc->course->departmentCourseTypes
+                ->where('curriculum_id', $curriculum->id)
+                ->first();
+            
+            // Use setAttribute to ensure it serializes in JSON response
+            $courseTypeData = $dct?->courseType ? [
+                'id' => $dct->courseType->id,
+                'name' => $dct->courseType->name,
+                'color' => $dct->courseType->color,
+                'parentId' => $dct->courseType->parent_course_type_id,
+            ] : null;
+            
+            $cc->course->setAttribute('course_type', $courseTypeData);
+            
+            // Clean up the loaded relationship to avoid duplication in response
+            unset($cc->course->departmentCourseTypes);
+        });
 
         return response()->json(['curriculum' => $curriculum]);
     }

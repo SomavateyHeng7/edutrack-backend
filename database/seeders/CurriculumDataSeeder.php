@@ -233,6 +233,7 @@ class CurriculumDataSeeder extends Seeder
                     'course_id' => $course->id,
                     'course_type_id' => $courseType->id,
                     'department_id' => $this->departmentId,
+                    'curriculum_id' => $curriculum->id,
                 ]);
             }
 

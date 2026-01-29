@@ -176,15 +176,21 @@ class PublicCurriculumController extends Controller
                 $requiresSeniorStanding = $curriculumCourse->overrideRequiresSeniorStanding ?? $course->requiresSeniorStanding ?? false;
                 $minCreditThreshold = $curriculumCourse->overrideMinCreditThreshold ?? $course->minCreditThreshold ?? null;
 
-                $category = optional($course->departmentCourseTypes)
-                    ->filter(function ($typeAssignment) use ($curriculum) {
-                        return $typeAssignment->curriculumId === $curriculum->id;
+                // Find course type assignment for this curriculum
+                $typeAssignment = optional($course->departmentCourseTypes)
+                    ->filter(function ($dct) use ($curriculum) {
+                        return $dct->curriculum_id === $curriculum->id;
                     })
-                    ->map(function ($typeAssignment) {
-                        return optional($typeAssignment->courseType)->name;
-                    })
-                    ->filter()
-                    ->first() ?? 'Unassigned';
+                    ->first();
+
+                $category = optional($typeAssignment?->courseType)->name ?? 'Unassigned';
+                
+                $courseType = $typeAssignment?->courseType ? [
+                    'id' => $typeAssignment->courseType->id,
+                    'name' => $typeAssignment->courseType->name,
+                    'color' => $typeAssignment->courseType->color,
+                    'parentId' => $typeAssignment->courseType->parent_course_type_id,
+                ] : null;
 
                 return [
                     'id' => $curriculumCourse->id,
@@ -206,6 +212,7 @@ class PublicCurriculumController extends Controller
                         'creditHours' => $course->creditHours,
                         'description' => $course->description,
                         'category' => $category,
+                        'courseType' => $courseType,
                         'prerequisites' => $prerequisites,
                         'corequisites' => $corequisites,
                     ],
