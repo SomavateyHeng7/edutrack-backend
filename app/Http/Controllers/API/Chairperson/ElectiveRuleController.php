@@ -154,11 +154,17 @@ class ElectiveRuleController extends Controller
 
             /* ---------- Free Electives ---------- */
             if ($request->hasAny(['freeElectiveCredits', 'freeElectiveName'])) {
+                // Get the name first to determine what we're looking for
+                $name = $request->freeElectiveName ?? 'Free Electives';
+                
+                // First try to find by exact name, then try case-insensitive LIKE search
                 $rule = ElectiveRule::where('curriculum_id', $curriculumId)
-                    ->where('category', 'LIKE', '%free%')
+                    ->where(function($query) use ($name) {
+                        $query->where('category', $name)
+                              ->orWhere('category', 'LIKE', '%free%');
+                    })
                     ->first();
 
-                $name = $request->freeElectiveName ?? $rule?->category ?? 'Free Electives';
                 $credits = $request->freeElectiveCredits ?? $rule?->required_credits ?? 0;
 
                 if ($rule) {
