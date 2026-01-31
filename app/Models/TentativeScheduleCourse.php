@@ -24,6 +24,7 @@ class TentativeScheduleCourse extends Model
 
     protected $casts = [
         'seat_limit' => 'integer',
+        'days' => 'array', // Cast JSON to array automatically
     ];
 
     /**

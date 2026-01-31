@@ -140,7 +140,7 @@ class TentativeScheduleController extends Controller
                     'tentative_schedule_id' => $schedule->id,
                     'course_id' => $courseData['courseId'],
                     'section' => $courseData['section'] ?? null,
-                    'days' => isset($courseData['days']) ? json_encode($courseData['days']) : null,
+                    'days' => $courseData['days'] ?? null,
                     'time' => $courseData['time'] ?? null,
                     'instructor' => $courseData['instructor'] ?? null,
                     'seat_limit' => $courseData['seatLimit'] ?? null,
@@ -287,7 +287,7 @@ class TentativeScheduleController extends Controller
                         'tentative_schedule_id' => $schedule->id,
                         'course_id' => $courseData['courseId'],
                         'section' => $courseData['section'] ?? null,
-                        'days' => isset($courseData['days']) ? json_encode($courseData['days']) : null,
+                        'days' => $courseData['days'] ?? null,
                         'time' => $courseData['time'] ?? null,
                         'instructor' => $courseData['instructor'] ?? null,
                         'seat_limit' => $courseData['seatLimit'] ?? null,
@@ -477,7 +477,7 @@ class TentativeScheduleController extends Controller
                     'credits' => $scheduleCourse->course->credits,
                     'description' => $scheduleCourse->course->description,
                     'section' => $scheduleCourse->section,
-                    'days' => $scheduleCourse->days ? json_decode($scheduleCourse->days) : null,
+                    'days' => $scheduleCourse->days,
                     'time' => $scheduleCourse->time,
                     'instructor' => $scheduleCourse->instructor,
                     'seatLimit' => $scheduleCourse->seat_limit,
@@ -596,12 +596,8 @@ class TentativeScheduleController extends Controller
                     $timeStart = null;
                     $timeEnd = null;
                     
-                    // Parse days if available
-                    if ($scheduleCourse->days) {
-                        $days = is_string($scheduleCourse->days) 
-                            ? json_decode($scheduleCourse->days) 
-                            : $scheduleCourse->days;
-                    }
+                    // Days is already an array from model casting
+                    $days = $scheduleCourse->days;
                     
                     // Parse time if available
                     if ($scheduleCourse->time && str_contains($scheduleCourse->time, '-')) {
