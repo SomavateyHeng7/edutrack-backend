@@ -364,11 +364,16 @@ class CreditPoolController extends Controller
             $subCategory = SubCategoryPool::where('pool_id', $poolId)
                 ->findOrFail($subCatId);
 
-            $subCategory->update($validated);
+            // Map camelCase to snake_case for model update
+            if ($request->has('requiredCredits')) {
+                $subCategory->required_credits = $validated['requiredCredits'];
+            }
+
+            $subCategory->save();
 
             return response()->json([
                 'message' => 'Sub-category updated successfully',
-                'subCategory' => $this->formatSubCategory($subCategory->load('courseType', 'attachedCourses.course')),
+                'subCategory' => $this->formatSubCategory($subCategory->fresh()->load('courseType', 'attachedCourses.course')),
             ]);
 
         } catch (\Exception $e) {
@@ -515,5 +520,472 @@ class CreditPoolController extends Controller
             }),
             'attachedCredits' => $subCat->attachedCourses->sum(fn($a) => $a->course->credits ?? 0),
         ];
+    }
+
+    /**
+     * PUT /api/curricula/{curriculumId}/credit-pools/reorder
+     * Reorder credit pools (affects evaluation priority)
+     */
+    public function reorderPools(Request $request, $curriculumId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $validated = $request->validate([
+                'orderedPoolIds' => 'required|array',
+                'orderedPoolIds.*' => 'integer',
+            ]);
+
+            DB::transaction(function () use ($validated, $curriculumId) {
+                foreach ($validated['orderedPoolIds'] as $index => $poolId) {
+                    CurriculumCreditPool::where('curriculum_id', $curriculumId)
+                        ->where('id', $poolId)
+                        ->update(['order_index' => $index]);
+                }
+            });
+
+            return response()->json([
+                'message' => 'Pools reordered successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error reordering pools: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to reorder pools',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * DELETE /api/curricula/{curriculumId}/credit-pools/{poolId}/sub-categories/{subCatId}
+     * Delete a sub-category from a pool
+     */
+    public function deleteSubCategory($curriculumId, $poolId, $subCatId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $subCategory = SubCategoryPool::where('pool_id', $poolId)
+                ->findOrFail($subCatId);
+
+            $courseTypeName = $subCategory->courseType->name ?? 'Unknown';
+            $subCategory->delete();
+
+            AuditLog::create([
+                'user_id' => $user->id,
+                'entity_type' => 'SubCategoryPool',
+                'entity_id' => $subCatId,
+                'action' => 'DELETE',
+                'description' => "Deleted sub-category '{$courseTypeName}' from pool",
+            ]);
+
+            return response()->json([
+                'message' => 'Sub-category deleted successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error deleting sub-category: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to delete sub-category',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * PUT /api/curricula/{curriculumId}/credit-pools/{poolId}/sub-categories/reorder
+     * Reorder sub-categories within a pool
+     */
+    public function reorderSubCategories(Request $request, $curriculumId, $poolId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $validated = $request->validate([
+                'orderedSubCategoryIds' => 'required|array',
+                'orderedSubCategoryIds.*' => 'integer',
+            ]);
+
+            DB::transaction(function () use ($validated, $poolId) {
+                foreach ($validated['orderedSubCategoryIds'] as $index => $subCatId) {
+                    SubCategoryPool::where('pool_id', $poolId)
+                        ->where('id', $subCatId)
+                        ->update(['order_index' => $index]);
+                }
+            });
+
+            return response()->json([
+                'message' => 'Sub-categories reordered successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error reordering sub-categories: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to reorder sub-categories',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * DELETE /api/curricula/{curriculumId}/credit-pools/sub-categories/{subCatId}/courses/{courseId}
+     * Detach a course from a sub-category by course ID
+     */
+    public function detachCourseByIds($curriculumId, $subCatId, $courseId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $attachment = PoolCourseAttachment::where('sub_category_pool_id', $subCatId)
+                ->where('course_id', $courseId)
+                ->first();
+
+            if (!$attachment) {
+                return response()->json([
+                    'error' => 'Course attachment not found'
+                ], 404);
+            }
+
+            $attachment->delete();
+
+            return response()->json([
+                'message' => 'Course detached successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error detaching course: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to detach course',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/curricula/{curriculumId}/credit-pools/available-course-types
+     * Get available top-level course types that haven't been used in pools yet
+     */
+    public function getAvailableCourseTypes(Request $request, $curriculumId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $curriculum = Curriculum::findOrFail($curriculumId);
+            $departmentId = $curriculum->department_id;
+
+            // Get course types already used in pools
+            $usedCourseTypeIds = CurriculumCreditPool::where('curriculum_id', $curriculumId)
+                ->pluck('top_level_course_type_id')
+                ->toArray();
+
+            // Get all top-level course types (those without parent)
+            $availableTypes = CourseType::where('department_id', $departmentId)
+                ->whereNull('parent_course_type_id')
+                ->whereNotIn('id', $usedCourseTypeIds)
+                ->orderBy('position')
+                ->get();
+
+            return response()->json([
+                'courseTypes' => $availableTypes->map(fn($type) => [
+                    'id' => $type->id,
+                    'name' => $type->name,
+                    'color' => $type->color,
+                    'position' => $type->position,
+                ]),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching available course types: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to fetch available course types',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/curricula/{curriculumId}/credit-pools/{poolId}/sub-categories/{subCatId}/available-courses
+     * Get available courses for a sub-category that haven't been attached yet
+     */
+    public function getAvailableCourses(Request $request, $curriculumId, $poolId, $subCatId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $subCategory = SubCategoryPool::findOrFail($subCatId);
+            $curriculum = Curriculum::findOrFail($curriculumId);
+
+            // Get courses already attached to this sub-category
+            $attachedCourseIds = PoolCourseAttachment::where('sub_category_pool_id', $subCatId)
+                ->pluck('course_id')
+                ->toArray();
+
+            // Get courses from curriculum that match the course type and haven't been attached
+            $query = $request->query('search');
+
+            $courses = Course::whereHas('departmentCourseTypes', function ($q) use ($subCategory) {
+                    $q->where('course_type_id', $subCategory->course_type_id);
+                })
+                ->whereNotIn('id', $attachedCourseIds)
+                ->when($query, function ($q, $search) {
+                    $q->where(function ($inner) use ($search) {
+                        $inner->where('code', 'like', "%{$search}%")
+                              ->orWhere('name', 'like', "%{$search}%");
+                    });
+                })
+                ->orderBy('code')
+                ->limit(50)
+                ->get();
+
+            return response()->json([
+                'courses' => $courses->map(fn($course) => [
+                    'id' => $course->id,
+                    'code' => $course->code,
+                    'name' => $course->name,
+                    'credits' => $course->credits,
+                    'description' => $course->description,
+                ]),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching available courses: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to fetch available courses',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/curricula/{curriculumId}/credit-pools/{poolId}/available-sub-types
+     * Get available child course types for a pool's top-level course type
+     */
+    public function getAvailableSubTypes(Request $request, $curriculumId, $poolId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $pool = CurriculumCreditPool::where('curriculum_id', $curriculumId)
+                ->findOrFail($poolId);
+
+            // Get course types already used as sub-categories in this pool
+            $usedSubTypeIds = SubCategoryPool::where('pool_id', $poolId)
+                ->pluck('course_type_id')
+                ->toArray();
+
+            // Get all child course types of the pool's top-level type
+            $availableSubTypes = CourseType::where('parent_course_type_id', $pool->top_level_course_type_id)
+                ->whereNotIn('id', $usedSubTypeIds)
+                ->orderBy('position')
+                ->get();
+
+            // Also include the top-level type itself if not already used
+            $topLevelType = CourseType::find($pool->top_level_course_type_id);
+            $includeTopLevel = !in_array($pool->top_level_course_type_id, $usedSubTypeIds);
+
+            $result = [];
+            
+            if ($includeTopLevel && $topLevelType) {
+                $result[] = [
+                    'id' => $topLevelType->id,
+                    'name' => $topLevelType->name . ' (All)',
+                    'color' => $topLevelType->color,
+                    'position' => -1, // Put at top
+                    'isTopLevel' => true,
+                ];
+            }
+
+            foreach ($availableSubTypes as $type) {
+                $result[] = [
+                    'id' => $type->id,
+                    'name' => $type->name,
+                    'color' => $type->color,
+                    'position' => $type->position,
+                    'isTopLevel' => false,
+                ];
+            }
+
+            return response()->json([
+                'courseTypes' => $result,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching available sub-types: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to fetch available sub-types',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/curricula/{curriculumId}/credit-pools/curriculum-courses
+     * Get all courses in the curriculum with their course types for pool management
+     */
+    public function getCurriculumCourses(Request $request, $curriculumId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $curriculum = Curriculum::with([
+                'curriculumCourses.course.departmentCourseTypes.courseType'
+            ])->findOrFail($curriculumId);
+
+            $search = $request->query('search');
+            $courseTypeId = $request->query('courseTypeId');
+
+            $courses = $curriculum->curriculumCourses
+                ->map(function ($cc) {
+                    $course = $cc->course;
+                    $courseTypes = $course->departmentCourseTypes->map(fn($dct) => [
+                        'id' => $dct->courseType->id,
+                        'name' => $dct->courseType->name,
+                        'color' => $dct->courseType->color,
+                    ]);
+
+                    return [
+                        'id' => $course->id,
+                        'code' => $course->code,
+                        'name' => $course->name,
+                        'credits' => $course->credits,
+                        'yearLevel' => $cc->year_level,
+                        'semester' => $cc->semester,
+                        'courseTypes' => $courseTypes,
+                    ];
+                })
+                ->when($search, function ($collection, $search) {
+                    return $collection->filter(function ($course) use ($search) {
+                        return str_contains(strtolower($course['code']), strtolower($search))
+                            || str_contains(strtolower($course['name']), strtolower($search));
+                    });
+                })
+                ->when($courseTypeId, function ($collection, $typeId) {
+                    return $collection->filter(function ($course) use ($typeId) {
+                        return collect($course['courseTypes'])->contains('id', $typeId);
+                    });
+                })
+                ->values();
+
+            return response()->json([
+                'courses' => $courses,
+                'total' => $courses->count(),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching curriculum courses: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to fetch curriculum courses',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/curricula/{curriculumId}/credit-pools/summary
+     * Get a summary of all pools with credit calculations
+     */
+    public function getSummary($curriculumId)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user || $user->role !== 'CHAIRPERSON') {
+                return response()->json(['error' => 'Chairperson access required'], 403);
+            }
+
+            $pools = CurriculumCreditPool::with([
+                'topLevelCourseType',
+                'subCategories.courseType',
+                'subCategories.attachedCourses.course'
+            ])
+                ->where('curriculum_id', $curriculumId)
+                ->where('enabled', true)
+                ->orderBy('order_index')
+                ->get();
+
+            $summary = [
+                'pools' => [],
+                'totalRequiredCredits' => 0,
+                'totalAttachedCredits' => 0,
+                'allPoolsSatisfied' => true,
+            ];
+
+            foreach ($pools as $pool) {
+                $poolRequired = $pool->subCategories->sum('required_credits');
+                $poolAttached = $pool->subCategories->sum(function ($subCat) {
+                    return $subCat->attachedCourses->sum(fn($a) => $a->course->credits ?? 0);
+                });
+
+                $isSatisfied = $poolAttached >= $poolRequired;
+
+                $summary['pools'][] = [
+                    'id' => $pool->id,
+                    'name' => $pool->name,
+                    'color' => $pool->topLevelCourseType->color ?? '#6366f1',
+                    'requiredCredits' => $poolRequired,
+                    'attachedCredits' => $poolAttached,
+                    'isSatisfied' => $isSatisfied,
+                    'subCategoriesCount' => $pool->subCategories->count(),
+                ];
+
+                $summary['totalRequiredCredits'] += $poolRequired;
+                $summary['totalAttachedCredits'] += $poolAttached;
+                
+                if (!$isSatisfied) {
+                    $summary['allPoolsSatisfied'] = false;
+                }
+            }
+
+            return response()->json($summary);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching pool summary: ' . $e->getMessage());
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to fetch pool summary',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
     }
 }

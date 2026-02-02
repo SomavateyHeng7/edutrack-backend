@@ -83,6 +83,11 @@ class Curriculum extends Model
         return $this->hasMany(CurriculumConstraint::class);
     }
 
+    public function creditPools(): HasMany
+    {
+        return $this->hasMany(CurriculumCreditPool::class);
+    }
+
     public function auditLogs(): HasMany
     {
         return $this->hasMany(AuditLog::class);

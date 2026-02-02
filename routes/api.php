@@ -373,13 +373,30 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/credit-pools/{poolId}', [CreditPoolController::class, 'update']);
         Route::delete('/credit-pools/{poolId}', [CreditPoolController::class, 'destroy']);
         
+        // Pool reordering (evaluation priority)
+        Route::put('/credit-pools/reorder', [CreditPoolController::class, 'reorderPools']);
+        
+        // Pool summary and utilities
+        Route::get('/credit-pools/summary', [CreditPoolController::class, 'getSummary']);
+        Route::get('/credit-pools/available-course-types', [CreditPoolController::class, 'getAvailableCourseTypes']);
+        Route::get('/credit-pools/curriculum-courses', [CreditPoolController::class, 'getCurriculumCourses']);
+        
         // Sub-category management
         Route::post('/credit-pools/{poolId}/sub-categories', [CreditPoolController::class, 'addSubCategory']);
         Route::put('/credit-pools/{poolId}/sub-categories/{subCatId}', [CreditPoolController::class, 'updateSubCategory']);
+        Route::delete('/credit-pools/{poolId}/sub-categories/{subCatId}', [CreditPoolController::class, 'deleteSubCategory']);
+        Route::put('/credit-pools/{poolId}/sub-categories/reorder', [CreditPoolController::class, 'reorderSubCategories']);
+        
+        // Available sub-types for a pool
+        Route::get('/credit-pools/{poolId}/available-sub-types', [CreditPoolController::class, 'getAvailableSubTypes']);
         
         // Course attachments
         Route::post('/credit-pools/sub-categories/{subCatId}/attach-courses', [CreditPoolController::class, 'attachCourses']);
+        Route::delete('/credit-pools/sub-categories/{subCatId}/courses/{courseId}', [CreditPoolController::class, 'detachCourseByIds']);
         Route::delete('/credit-pools/attachments/{attachmentId}', [CreditPoolController::class, 'detachCourse']);
+        
+        // Available courses for sub-category attachment
+        Route::get('/credit-pools/{poolId}/sub-categories/{subCatId}/available-courses', [CreditPoolController::class, 'getAvailableCourses']);
     });
 
 });
