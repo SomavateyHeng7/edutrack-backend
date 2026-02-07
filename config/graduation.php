@@ -12,13 +12,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Submission TTL
+    | Submission Retention
     |--------------------------------------------------------------------------
-    | How long submission data is kept in cache before automatic deletion.
-    | This is for PDPA compliance - data must not persist permanently.
-    | In minutes.
+    | How many days after the portal deadline to keep submission data.
+    | Submissions will be deleted (portal.deadline + retention_days).
+    | In days.
     */
-    'submission_ttl_minutes' => (int) env('GRADUATION_SUBMISSION_TTL', 30),
+    'submission_retention_days' => (int) env('GRADUATION_SUBMISSION_RETENTION_DAYS', 7),
 
     /*
     |--------------------------------------------------------------------------

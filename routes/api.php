@@ -365,6 +365,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Batch operations for graduation submissions
     Route::post('/graduation-submissions/batch-validate', [GraduationSubmissionController::class, 'batchValidate']);
 
+    // Graduation Notifications
+    Route::prefix('graduation-notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\GraduationNotificationController::class, 'index']);
+        Route::get('/unread-count', [\App\Http\Controllers\GraduationNotificationController::class, 'unreadCount']);
+        Route::post('/mark-all-read', [\App\Http\Controllers\GraduationNotificationController::class, 'markAllAsRead']);
+        Route::post('/{id}/read', [\App\Http\Controllers\GraduationNotificationController::class, 'markAsRead']);
+        Route::delete('/clear-read', [\App\Http\Controllers\GraduationNotificationController::class, 'clearRead']);
+        Route::delete('/{id}', [\App\Http\Controllers\GraduationNotificationController::class, 'destroy']);
+    });
+
     // Credit Pools (Curriculum-specific)
     Route::prefix('curricula/{curriculumId}')->group(function () {
         // Credit Pool CRUD

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\NewGraduationSubmission;
 use App\Events\SubmissionValidated;
 use App\Http\Requests\StoreGraduationSubmissionRequest;
+use App\Models\GraduationNotification;
 use App\Models\GraduationPortal;
 use App\Models\GraduationPortalLog;
 use App\Services\GraduationValidationService;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class GraduationSubmissionController extends Controller
 {
@@ -34,7 +36,7 @@ class GraduationSubmissionController extends Controller
         try {
             $session = $request->input('graduation_session');
             $cacheStore = config('graduation.cache_store', 'file');
-            $ttl = config('graduation.submission_ttl_minutes', 30);
+            $retentionDays = config('graduation.submission_retention_days', 7);
 
             // Sanitize inputs
             $studentIdentifier = $this->sanitizeIdentifier($request->input('student_identifier'));
@@ -43,6 +45,10 @@ class GraduationSubmissionController extends Controller
 
             // Generate unique submission ID
             $submissionId = (string) Str::uuid();
+
+            // Calculate expiry: portal deadline + retention days
+            $deletionDate = $this->calculateDeletionDate($portal, $retentionDays);
+            $expiresAt = $deletionDate->toIso8601String();
 
             // Prepare submission data
             $submissionData = [
@@ -54,20 +60,22 @@ class GraduationSubmissionController extends Controller
                 'status' => 'pending',
                 'validation_result' => null,
                 'submitted_at' => now()->toIso8601String(),
-                'expires_at' => now()->addMinutes($ttl)->toIso8601String(),
+                'expires_at' => $expiresAt,
+                'deletion_date' => $deletionDate->format('Y-m-d'),
                 'metadata' => $request->input('metadata', []),
                 'ip_address' => $request->ip(),
             ];
 
-            // Store in cache
+            // Store in cache - convert deletion date to TTL in seconds
+            $ttlSeconds = $this->calculateCacheTtlSeconds($deletionDate);
             Cache::store($cacheStore)->put(
                 "graduation_submission:{$submissionId}",
                 $submissionData,
-                now()->addMinutes($ttl)
+                $ttlSeconds
             );
 
             // Add to portal's submission list
-            $this->addToPortalSubmissionList($portal->id, $submissionId, $cacheStore, $ttl);
+            $this->addToPortalSubmissionList($portal->id, $submissionId, $cacheStore, $deletionDate);
 
             // Log the submission
             GraduationPortalLog::log(
@@ -94,12 +102,31 @@ class GraduationSubmissionController extends Controller
                 Log::warning('Failed to broadcast submission event: ' . $e->getMessage());
             }
 
+            // Create notifications for chairpersons/advisors in the department
+            try {
+                if ($portal->department_id) {
+                    $notificationCount = GraduationNotification::notifyDepartmentStaff(
+                        $portal->department_id,
+                        $portal->id,
+                        $portal->name,
+                        $studentIdentifier,
+                        $submissionId,
+                        count($courses)
+                    );
+                    Log::info("Created {$notificationCount} notifications for submission {$submissionId}");
+                }
+            } catch (\Exception $e) {
+                // Log but don't fail if notification creation fails
+                Log::warning('Failed to create notifications: ' . $e->getMessage());
+            }
+
             return response()->json([
                 'message' => 'Submission received successfully',
                 'submission' => [
                     'id' => $submissionId,
                     'status' => 'pending',
                     'expires_at' => $submissionData['expires_at'],
+                    'deletion_date' => $submissionData['deletion_date'],
                     'course_count' => count($courses),
                 ],
             ], 201);
@@ -145,6 +172,7 @@ class GraduationSubmissionController extends Controller
                         'course_count' => count($submission['courses'] ?? []),
                         'submitted_at' => $submission['submitted_at'],
                         'expires_at' => $submission['expires_at'],
+                        'deletion_date' => $submission['deletion_date'] ?? null,
                         'has_validation_result' => !empty($submission['validation_result']),
                     ];
                     $activeIds[] = $submissionId;
@@ -153,20 +181,31 @@ class GraduationSubmissionController extends Controller
             
             // Update the list to remove expired submissions
             if (count($activeIds) !== count($submissionIds)) {
+                $retentionDays = config('graduation.submission_retention_days', 7);
+                $deletionDate = $this->calculateDeletionDate($portal, $retentionDays);
+                $ttlSeconds = $this->calculateCacheTtlSeconds($deletionDate);
                 Cache::store($cacheStore)->put(
                     "portal_submissions:{$portal->id}",
                     $activeIds,
-                    now()->addMinutes(config('graduation.submission_ttl_minutes', 30))
+                    $ttlSeconds
                 );
             }
             
             // Sort by submitted_at descending
             usort($submissions, fn($a, $b) => strcmp($b['submitted_at'], $a['submitted_at']));
 
+            $retentionDays = config('graduation.submission_retention_days', 7);
+            $deletionDate = $portal->deadline ? $portal->deadline->copy()->addDays($retentionDays)->format('Y-m-d') : 'N/A';
+
             return response()->json([
                 'submissions' => $submissions,
                 'total' => count($submissions),
-                'note' => 'Submissions are stored temporarily and will expire after ' . config('graduation.submission_ttl_minutes', 30) . ' minutes',
+                'retention_info' => [
+                    'portal_deadline' => $portal->deadline?->format('Y-m-d'),
+                    'retention_days' => $retentionDays,
+                    'deletion_date' => $deletionDate,
+                ],
+                'note' => "Submissions will be deleted {$retentionDays} days after the portal deadline ({$deletionDate})",
             ]);
 
         } catch (\Exception $e) {
@@ -257,7 +296,7 @@ class GraduationSubmissionController extends Controller
             $submission['validated_by'] = $request->user()->id;
             
             // Store updated submission
-            $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+            $remainingTtl = $this->calculateRemainingTtlMinutes($submission['expires_at']);
             Cache::store($cacheStore)->put(
                 "graduation_submission:{$submissionId}",
                 $submission,
@@ -362,7 +401,7 @@ class GraduationSubmissionController extends Controller
                 $submission['validated_at'] = now()->toIso8601String();
                 $submission['validated_by'] = $user->id;
 
-                $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+                $remainingTtl = $this->calculateRemainingTtlMinutes($submission['expires_at']);
                 Cache::store($cacheStore)->put(
                     "graduation_submission:{$submissionId}",
                     $submission,
@@ -424,7 +463,7 @@ class GraduationSubmissionController extends Controller
             $submission['approved_by'] = $request->user()->id;
             $submission['approval_notes'] = $request->input('notes');
             
-            $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+            $remainingTtl = $this->calculateRemainingTtlMinutes($submission['expires_at']);
             Cache::store($cacheStore)->put(
                 "graduation_submission:{$submissionId}",
                 $submission,
@@ -483,7 +522,7 @@ class GraduationSubmissionController extends Controller
             $submission['rejected_by'] = $request->user()->id;
             $submission['rejection_reason'] = $request->input('reason');
             
-            $remainingTtl = max(1, now()->diffInMinutes($submission['expires_at'], false));
+            $remainingTtl = $this->calculateRemainingTtlMinutes($submission['expires_at']);
             Cache::store($cacheStore)->put(
                 "graduation_submission:{$submissionId}",
                 $submission,
@@ -616,7 +655,7 @@ class GraduationSubmissionController extends Controller
         })->toArray();
     }
 
-    private function addToPortalSubmissionList(int $portalId, string $submissionId, string $cacheStore, int $ttl): void
+    private function addToPortalSubmissionList(int $portalId, string $submissionId, string $cacheStore, Carbon $deletionDate): void
     {
         $listKey = "portal_submissions:{$portalId}";
         $list = Cache::store($cacheStore)->get($listKey, []);
@@ -627,6 +666,76 @@ class GraduationSubmissionController extends Controller
             $list = array_slice($list, -100);
         }
         
-        Cache::store($cacheStore)->put($listKey, $list, now()->addMinutes($ttl));
+        $ttlSeconds = $this->calculateCacheTtlSeconds($deletionDate);
+        Cache::store($cacheStore)->put($listKey, $list, $ttlSeconds);
+    }
+
+    /**
+     * Calculate the deletion date for a submission based on portal deadline + retention days.
+     * If portal has no deadline, defaults to now + retention days.
+     */
+    private function calculateDeletionDate(GraduationPortal $portal, int $retentionDays): Carbon
+    {
+        if ($portal->deadline) {
+            $deletionDate = $portal->deadline->copy()->addDays($retentionDays);
+            // Ensure deletion date is in the future (at least 1 hour from now)
+            if ($deletionDate->isPast()) {
+                return now()->addDays($retentionDays);
+            }
+            return $deletionDate;
+        }
+        
+        // Fallback: if no deadline, use now + retention days
+        return now()->addDays($retentionDays);
+    }
+
+    /**
+     * Calculate cache TTL in seconds from a deletion date.
+     * Returns seconds until deletion date, with bounds checking.
+     */
+    private function calculateCacheTtlSeconds(Carbon $deletionDate): int
+    {
+        $seconds = $deletionDate->diffInSeconds(now(), false);
+        
+        // Ensure positive TTL (minimum 1 hour = 3600 seconds)
+        if ($seconds <= 0) {
+            $seconds = 3600; // 1 hour minimum
+        }
+        
+        // Maximum TTL: 365 days (to prevent overflow)
+        $maxTtl = 365 * 24 * 60 * 60; // 31,536,000 seconds
+        if ($seconds > $maxTtl) {
+            $seconds = $maxTtl;
+        }
+        
+        return (int) $seconds;
+    }
+
+    /**
+     * Calculate remaining TTL in minutes from an expires_at ISO string.
+     * Returns minutes with bounds checking to prevent overflow.
+     */
+    private function calculateRemainingTtlMinutes(string $expiresAt): int
+    {
+        try {
+            $expiresAtDate = Carbon::parse($expiresAt);
+            $minutes = now()->diffInMinutes($expiresAtDate, false);
+            
+            // Minimum 1 minute
+            if ($minutes <= 0) {
+                return 1;
+            }
+            
+            // Maximum 365 days in minutes (to prevent overflow)
+            $maxMinutes = 365 * 24 * 60; // 525,600 minutes
+            if ($minutes > $maxMinutes) {
+                return $maxMinutes;
+            }
+            
+            return (int) $minutes;
+        } catch (\Exception $e) {
+            // Fallback to 1 hour if parsing fails
+            return 60;
+        }
     }
 }

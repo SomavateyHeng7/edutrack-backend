@@ -102,4 +102,14 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Curriculum::class, 'curriculum_id');
     }
+
+    public function graduationNotifications(): HasMany
+    {
+        return $this->hasMany(GraduationNotification::class);
+    }
+
+    public function unreadGraduationNotifications(): HasMany
+    {
+        return $this->hasMany(GraduationNotification::class)->where('read', false);
+    }
 }
