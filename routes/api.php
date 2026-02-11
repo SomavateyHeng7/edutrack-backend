@@ -11,6 +11,7 @@ use App\Http\Controllers\PublicFacultyController;
 use App\Http\Controllers\API\Admin\UserController;
 use App\Http\Controllers\PublicCurriculumController;
 use App\Http\Controllers\PublicDepartmentController;
+use App\Http\Controllers\PublicCourseController;
 
 // Admin
 use App\Http\Controllers\API\Admin\FacultyController;
@@ -36,6 +37,7 @@ use App\Http\Controllers\API\Chairperson\CreditPoolController;
 
 // Student
 use App\Http\Controllers\API\Chairperson\FacultyLabelController;
+use App\Http\Controllers\API\Student\ScheduleNotificationController;
 
 // System Setting
 
@@ -54,7 +56,7 @@ Route::get('/public-concentrations', [PublicConcentrationController::class, 'ind
 Route::get('/public-curricula/{id}/blacklists', [PublicCurriculumController::class, 'blacklists']);
 
 // Public courses endpoint
-Route::get('/public-courses', [CourseController::class, 'index']);
+Route::get('/public-courses', [PublicCourseController::class, 'index']);
 
 // ============================================
 // GRADUATION PORTAL PUBLIC ROUTES (for students)
@@ -87,6 +89,9 @@ Route::prefix('published-schedules')->group(function () {
     Route::get('/', [TentativeScheduleController::class, 'publishedSchedules']);
     Route::get('/{id}', [TentativeScheduleController::class, 'showPublished']);
 });
+
+// Public notification subscription (for guest users)
+Route::post('/schedule-notifications/subscribe', [ScheduleNotificationController::class, 'subscribe']);
 
 // Authentication routes
 Route::post('/login', [AuthController::class, 'login']);
@@ -250,6 +255,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Completed Courses (Student)
     Route::get('/completed-courses', [CompletedCourseController::class, 'index']);
+    
+    // Schedule Notifications (Student)
+    Route::prefix('schedule-notifications')->group(function () {
+        Route::post('/subscribe', [ScheduleNotificationController::class, 'subscribe']);
+        Route::post('/unsubscribe', [ScheduleNotificationController::class, 'unsubscribe']);
+        Route::get('/status', [ScheduleNotificationController::class, 'status']);
+    });
 
     // System Setting
     Route::get('/system-settings', [SystemSettingController::class, 'index']);
@@ -326,6 +338,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{id}', [TentativeScheduleController::class, 'update']);
         Route::delete('/{id}', [TentativeScheduleController::class, 'destroy']);
         Route::post('/{id}/toggle-publish', [TentativeScheduleController::class, 'togglePublish']);
+        Route::post('/{id}/toggle-active', [TentativeScheduleController::class, 'toggleActive']);
     });
 
     // Graduation Portals (Chairperson)

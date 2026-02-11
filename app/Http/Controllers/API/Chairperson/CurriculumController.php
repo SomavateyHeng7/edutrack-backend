@@ -496,6 +496,12 @@ class CurriculumController extends Controller
                 return ['coursesProcessed' => $coursesProcessed];
             });
 
+            // Notify subscribers about curriculum update
+            $curriculum = Curriculum::find($curriculumId);
+            if ($curriculum) {
+                \App\Http\Controllers\API\Student\ScheduleNotificationController::notifyCurriculumSubscribers($curriculum, 'uploaded');
+            }
+
             return response()->json([
                 'message' => 'Curriculum updated successfully',
                 'coursesProcessed' => $result['coursesProcessed'],

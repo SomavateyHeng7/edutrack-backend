@@ -59,14 +59,14 @@ class PublicCurriculumController extends Controller
                             return optional($coreq->corequisite)->code;
                         })->filter()->values()->all() ?? []);
 
-                    $requiresPermission = $curriculumCourse->overrideRequiresPermission ?? $course->requiresPermission ?? false;
-                    $summerOnly = $curriculumCourse->overrideSummerOnly ?? $course->summerOnly ?? false;
-                    $requiresSeniorStanding = $curriculumCourse->overrideRequiresSeniorStanding ?? $course->requiresSeniorStanding ?? false;
-                    $minCreditThreshold = $curriculumCourse->overrideMinCreditThreshold ?? $course->minCreditThreshold ?? null;
+                    $requiresPermission = $curriculumCourse->override_requires_permission ?? $course->requires_permission ?? false;
+                    $summerOnly = $curriculumCourse->override_summer_only ?? $course->summer_only ?? false;
+                    $requiresSeniorStanding = $curriculumCourse->override_requires_senior_standing ?? $course->requires_senior_standing ?? false;
+                    $minCreditThreshold = $curriculumCourse->override_min_credit_threshold ?? $course->min_credit_threshold ?? null;
 
                     $category = optional($course->departmentCourseTypes)
                         ->filter(function ($typeAssignment) use ($curriculum) {
-                            return $typeAssignment->curriculumId === $curriculum->id;
+                            return $typeAssignment->curriculum_id === $curriculum->id;
                         })
                         ->map(function ($typeAssignment) {
                             return optional($typeAssignment->courseType)->name;
@@ -76,9 +76,9 @@ class PublicCurriculumController extends Controller
 
                     return [
                         'id' => $curriculumCourse->id,
-                        'curriculumId' => $curriculumCourse->curriculumId,
-                        'courseId' => $curriculumCourse->courseId,
-                        'isRequired' => $curriculumCourse->isRequired,
+                        'curriculumId' => $curriculumCourse->curriculum_id,
+                        'courseId' => $curriculumCourse->course_id,
+                        'isRequired' => $curriculumCourse->is_required,
                         'semester' => $curriculumCourse->semester,
                         'year' => $curriculumCourse->year,
                         'position' => $curriculumCourse->position,
@@ -91,7 +91,7 @@ class PublicCurriculumController extends Controller
                             'code' => $course->code,
                             'name' => $course->name,
                             'credits' => $course->credits,
-                            'creditHours' => $course->creditHours,
+                            'creditHours' => $course->credit_hours,
                             'description' => $course->description,
                             'category' => $category,
                             'prerequisites' => $prerequisites,
@@ -106,9 +106,9 @@ class PublicCurriculumController extends Controller
                     'year' => $curriculum->year,
                     'version' => $curriculum->version,
                     'description' => $curriculum->description,
-                    'totalCreditsRequired' => $curriculum->totalCreditsRequired,
-                    'startId' => $curriculum->startId,
-                    'endId' => $curriculum->endId,
+                    'totalCreditsRequired' => $curriculum->total_credits_required,
+                    'startId' => $curriculum->start_id,
+                    'endId' => $curriculum->end_id,
                     'department' => $curriculum->department,
                     'faculty' => $curriculum->faculty,
                     'curriculumConstraints' => $curriculum->curriculumConstraints,
@@ -171,14 +171,14 @@ class PublicCurriculumController extends Controller
                         return optional($coreq->corequisite)->code;
                     })->filter()->values()->all() ?? []);
 
-                $requiresPermission = $curriculumCourse->overrideRequiresPermission ?? $course->requiresPermission ?? false;
-                $summerOnly = $curriculumCourse->overrideSummerOnly ?? $course->summerOnly ?? false;
-                $requiresSeniorStanding = $curriculumCourse->overrideRequiresSeniorStanding ?? $course->requiresSeniorStanding ?? false;
-                $minCreditThreshold = $curriculumCourse->overrideMinCreditThreshold ?? $course->minCreditThreshold ?? null;
+                $requiresPermission = $curriculumCourse->override_requires_permission ?? $course->requires_permission ?? false;
+                $summerOnly = $curriculumCourse->override_summer_only ?? $course->summer_only ?? false;
+                $requiresSeniorStanding = $curriculumCourse->override_requires_senior_standing ?? $course->requires_senior_standing ?? false;
+                $minCreditThreshold = $curriculumCourse->override_min_credit_threshold ?? $course->min_credit_threshold ?? null;
 
                 $category = optional($course->departmentCourseTypes)
                     ->filter(function ($typeAssignment) use ($curriculum) {
-                        return $typeAssignment->curriculumId === $curriculum->id;
+                        return $typeAssignment->curriculum_id === $curriculum->id;
                     })
                     ->map(function ($typeAssignment) {
                         return optional($typeAssignment->courseType)->name;
@@ -188,9 +188,9 @@ class PublicCurriculumController extends Controller
 
                 return [
                     'id' => $curriculumCourse->id,
-                    'curriculumId' => $curriculumCourse->curriculumId,
-                    'courseId' => $curriculumCourse->courseId,
-                    'isRequired' => $curriculumCourse->isRequired,
+                    'curriculumId' => $curriculumCourse->curriculum_id,
+                    'courseId' => $curriculumCourse->course_id,
+                    'isRequired' => $curriculumCourse->is_required,
                     'semester' => $curriculumCourse->semester,
                     'year' => $curriculumCourse->year,
                     'position' => $curriculumCourse->position,
@@ -203,7 +203,7 @@ class PublicCurriculumController extends Controller
                         'code' => $course->code,
                         'name' => $course->name,
                         'credits' => $course->credits,
-                        'creditHours' => $course->creditHours,
+                        'creditHours' => $course->credit_hours,
                         'description' => $course->description,
                         'category' => $category,
                         'prerequisites' => $prerequisites,
@@ -218,9 +218,9 @@ class PublicCurriculumController extends Controller
                 'year' => $curriculum->year,
                 'version' => $curriculum->version,
                 'description' => $curriculum->description,
-                'totalCreditsRequired' => $curriculum->totalCreditsRequired,
-                'startId' => $curriculum->startId,
-                'endId' => $curriculum->endId,
+                'totalCreditsRequired' => $curriculum->total_credits_required,
+                'startId' => $curriculum->start_id,
+                'endId' => $curriculum->end_id,
                 'department' => $curriculum->department,
                 'faculty' => $curriculum->faculty,
                 'curriculumConstraints' => $curriculum->curriculumConstraints,

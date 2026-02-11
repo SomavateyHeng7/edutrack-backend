@@ -7,6 +7,7 @@ use App\Models\TentativeSchedule;
 use App\Models\TentativeScheduleCourse;
 use App\Models\Course;
 use App\Models\Curriculum;
+use App\Http\Controllers\API\Student\ScheduleNotificationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -417,6 +418,11 @@ class TentativeScheduleController extends Controller
             
             $status = $schedule->is_published ? 'published' : 'unpublished';
             
+            // Notify subscribers if publishing
+            if ($schedule->is_published && $schedule->is_active) {
+                ScheduleNotificationController::notifySubscribers($schedule);
+            }
+            
             return response()->json([
                 'message' => "Tentative schedule {$status} successfully",
                 'schedule' => [
@@ -443,6 +449,81 @@ class TentativeScheduleController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Toggle active status of a tentative schedule (only one active per department)
+     * 
+     * @param Request $request
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function toggleActive(Request $request, $id)
+    {
+        try {
+            $schedule = TentativeSchedule::findOrFail($id);
+            
+            // Verify access
+            $user = $request->user();
+            if ($user->role === 'CHAIRPERSON' && 
+                $user->department_id !== $schedule->department_id) {
+                return response()->json([
+                    'error' => ['message' => 'Access denied']
+                ], 403);
+            }
+            
+            DB::beginTransaction();
+            
+            if (!$schedule->is_active) {
+                // Deactivate all other schedules in the same department
+                TentativeSchedule::where('department_id', $schedule->department_id)
+                    ->where('id', '!=', $id)
+                    ->update(['is_active' => false]);
+                
+                // Activate this schedule
+                $schedule->is_active = true;
+                
+                // Notify subscribers about active schedule
+                if ($schedule->is_published) {
+                    ScheduleNotificationController::notifySubscribers($schedule);
+                }
+            } else {
+                // Deactivate this schedule
+                $schedule->is_active = false;
+            }
+            
+            $schedule->save();
+            DB::commit();
+            
+            $status = $schedule->is_active ? 'activated' : 'deactivated';
+            
+            return response()->json([
+                'message' => "Tentative schedule {$status} successfully",
+                'schedule' => [
+                    'id' => $schedule->id,
+                    'isActive' => $schedule->is_active,
+                ],
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            DB::rollBack();
+            return response()->json([
+                'error' => ['message' => 'Tentative schedule not found']
+            ], 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error toggling active status: ' . $e->getMessage(), [
+                'scheduleId' => $id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to toggle active status',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
     
     /**
      * Format schedule response
@@ -461,6 +542,7 @@ class TentativeScheduleController extends Controller
             'department' => $schedule->department_name,
             'batch' => $schedule->batch,
             'isPublished' => $schedule->is_published,
+            'isActive' => $schedule->is_active ?? false,
             'createdAt' => $schedule->created_at->toISOString(),
             'updatedAt' => $schedule->updated_at->toISOString(),
             'curriculum' => $schedule->curriculum ? [
@@ -496,8 +578,13 @@ class TentativeScheduleController extends Controller
     {
         try {
             // Build query - only published schedules
-            $query = TentativeSchedule::with(['curriculum', 'courses'])
+            $query = TentativeSchedule::with(['curriculum', 'courses', 'department'])
                 ->where('is_published', true);
+            
+            // Department filter
+            if ($request->has('department_id')) {
+                $query->where('department_id', $request->department_id);
+            }
             
             // Search filter
             if ($request->has('search')) {
@@ -522,6 +609,7 @@ class TentativeScheduleController extends Controller
                     'year' => $schedule->year ?? '',
                     'version' => $schedule->version,
                     'department' => $schedule->department_name,
+                    'departmentId' => $schedule->department_id,
                     'batch' => $schedule->batch,
                     'isPublished' => true,
                     'coursesCount' => $schedule->courses->count(),
