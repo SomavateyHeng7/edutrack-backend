@@ -121,25 +121,67 @@ class GraduationValidationService
             ? round(($creditsCompleted / $totalRequired) * 100, 1) 
             : 0;
 
+        // Build requirements array in the format expected by frontend
+        $requirementsList = [];
+        foreach ($requirements['details'] as $key => $detail) {
+            $requirementsList[] = [
+                'name' => $detail['name'],
+                'met' => $detail['met'],
+                'label' => $detail['message'],
+                'description' => $detail['message'],
+                'message' => $detail['message'],
+                'required' => $detail['required'],
+                'current' => $detail['current'],
+            ];
+        }
+
         return [
             'valid' => empty($allErrors),
-            'canGraduate' => $requirements['canGraduate'],
+            'can_graduate' => $requirements['canGraduate'],
+            'canGraduate' => $requirements['canGraduate'], // keep legacy key for backwards compat
             'summary' => [
                 'totalCreditsRequired' => $curriculum->total_credits_required ?? 0,
+                'totalCreditsEarned' => $creditsCompleted,
                 'creditsCompleted' => $creditsCompleted,
                 'creditsInProgress' => $creditsInProgress,
                 'creditsPlanned' => $creditsPlanned,
                 'completionPercentage' => $completionPercentage,
                 'gpa' => round($gpa, 2),
+                'matchedCourses' => $matchResult['matchedCount'],
+                'unmatchedCourses' => $matchResult['unmatchedCount'],
+                // Legacy keys for backwards compat
                 'coursesMatched' => $matchResult['matchedCount'],
                 'coursesUnmatched' => $matchResult['unmatchedCount'],
             ],
             'categoryProgress' => $categoryProgress,
-            'requirements' => $requirements['details'],
+            'requirements' => $requirementsList,
             'errors' => $allErrors,
             'warnings' => $allWarnings,
-            'matchedCourses' => $matchResult['matchedCourses']->toArray(),
-            'unmatchedCourses' => $matchResult['unmatchedCourses'],
+            'matchedCourses' => $matchResult['matchedCourses']->map(function ($course) {
+                return [
+                    'code' => $course['code'],
+                    'name' => $course['name'] ?? null,
+                    'credits' => $course['credits'] ?? 0,
+                    'grade' => $course['grade'] ?? null,
+                    'status' => $course['status'] ?? 'completed',
+                    'semester' => $course['semester'] ?? null,
+                    'category' => $course['category'] ?? null,
+                    'matched' => true,
+                ];
+            })->values()->toArray(),
+            'unmatchedCourses' => collect($matchResult['unmatchedCourses'])->map(function ($course) {
+                if (is_string($course)) {
+                    return ['code' => $course, 'name' => null, 'credits' => 0, 'grade' => null, 'status' => 'completed', 'reason' => 'Not in curriculum'];
+                }
+                return [
+                    'code' => $course['code'] ?? null,
+                    'name' => $course['name'] ?? null,
+                    'credits' => $course['credits'] ?? 0,
+                    'grade' => $course['grade'] ?? null,
+                    'status' => $course['status'] ?? 'completed',
+                    'reason' => $course['reason'] ?? 'Not in curriculum',
+                ];
+            })->values()->toArray(),
         ];
     }
 
@@ -507,39 +549,51 @@ class GraduationValidationService
         $totalRequired = $curriculum->total_credits_required ?? 120;
         $creditsReqMet = $creditsCompleted >= $totalRequired;
         $requirements['totalCredits'] = [
-            'name' => 'Total Credits',
+            'name' => 'Minimum Credits',
             'required' => $totalRequired,
             'current' => $creditsCompleted,
             'met' => $creditsReqMet,
+            'label' => "Minimum {$totalRequired} credits required",
+            'description' => $creditsReqMet
+                ? "Student has {$creditsCompleted} completed credits"
+                : "Student has {$creditsCompleted} completed credits, needs " . ($totalRequired - $creditsCompleted) . " more",
             'message' => $creditsReqMet 
-                ? "Completed {$creditsCompleted} of {$totalRequired} credits"
-                : "Need " . ($totalRequired - $creditsCompleted) . " more credits",
+                ? "Minimum credit requirement: {$creditsCompleted}/{$totalRequired} completed"
+                : "Minimum credit requirement: {$creditsCompleted}/{$totalRequired} completed — need " . ($totalRequired - $creditsCompleted) . " more",
         ];
         if (!$creditsReqMet) $canGraduate = false;
 
         // 2. GPA requirement (default 2.0)
         $minGpa = 2.0;
+        $gpaRounded = round($gpa, 2);
         $gpaReqMet = $gpa >= $minGpa;
         $requirements['gpa'] = [
-            'name' => 'Minimum GPA',
+            'name' => 'GPA Requirement',
             'required' => $minGpa,
-            'current' => round($gpa, 2),
+            'current' => $gpaRounded,
             'met' => $gpaReqMet,
+            'label' => "Minimum GPA of {$minGpa} required",
+            'description' => $gpaReqMet
+                ? "Current GPA: {$gpaRounded} (meets requirement)"
+                : "Current GPA: {$gpaRounded} (below minimum {$minGpa})",
             'message' => $gpaReqMet 
-                ? "GPA of {$gpa} meets minimum {$minGpa}"
-                : "GPA of {$gpa} is below minimum {$minGpa}",
+                ? "Current GPA: {$gpaRounded} (meets requirement)"
+                : "Current GPA: {$gpaRounded} is below minimum {$minGpa}",
         ];
         if (!$gpaReqMet) $canGraduate = false;
 
         // 3. Category requirements
         foreach ($categoryProgress as $category => $progress) {
             if ($progress['creditsRequired'] > 0 && !$progress['isComplete']) {
+                $deficit = $progress['creditsRequired'] - $progress['creditsCompleted'];
                 $requirements["category_{$category}"] = [
-                    'name' => "{$category} Credits",
+                    'name' => "{$category} Complete",
                     'required' => $progress['creditsRequired'],
                     'current' => $progress['creditsCompleted'],
                     'met' => false,
-                    'message' => "Need " . ($progress['creditsRequired'] - $progress['creditsCompleted']) . " more {$category} credits",
+                    'label' => "All {$category} credits must be completed",
+                    'description' => "{$deficit} credits remaining in {$category}",
+                    'message' => "{$deficit} credits remaining in {$category}",
                 ];
                 $canGraduate = false;
             }
@@ -552,6 +606,10 @@ class GraduationValidationService
             'required' => 0,
             'current' => count($errors),
             'met' => $noErrorsReqMet,
+            'label' => 'No validation errors',
+            'description' => $noErrorsReqMet 
+                ? 'No validation errors found'
+                : count($errors) . ' validation error(s) found',
             'message' => $noErrorsReqMet 
                 ? "No validation errors"
                 : count($errors) . " validation error(s) found",

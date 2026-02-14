@@ -37,6 +37,21 @@ class GraduationSubmissionController extends Controller
             $session = $request->input('graduation_session');
             $cacheStore = config('graduation.cache_store', 'file');
             $retentionDays = config('graduation.submission_retention_days', 7);
+            $gracePeriodDays = config('graduation.grace_period_days', 7);
+
+            // Check grace period: accept submissions up to deadline + grace_period_days
+            if ($portal->deadline) {
+                $gracePeriodEnd = $portal->deadline->copy()->addDays($gracePeriodDays);
+                if (now()->greaterThan($gracePeriodEnd)) {
+                    return response()->json([
+                        'message' => 'The submission window (including grace period) has closed.',
+                        'error' => [
+                            'message' => 'The submission window (including grace period) has closed.',
+                            'code' => 'GRACE_PERIOD_ENDED'
+                        ]
+                    ], 422);
+                }
+            }
 
             // Sanitize inputs
             $studentIdentifier = $this->sanitizeIdentifier($request->input('student_identifier'));
@@ -196,6 +211,7 @@ class GraduationSubmissionController extends Controller
 
             $retentionDays = config('graduation.submission_retention_days', 7);
             $deletionDate = $portal->deadline ? $portal->deadline->copy()->addDays($retentionDays)->format('Y-m-d') : 'N/A';
+            $isInGracePeriod = $portal->isInGracePeriod();
 
             return response()->json([
                 'submissions' => $submissions,
@@ -204,6 +220,7 @@ class GraduationSubmissionController extends Controller
                     'portal_deadline' => $portal->deadline?->format('Y-m-d'),
                     'retention_days' => $retentionDays,
                     'deletion_date' => $deletionDate,
+                    'is_in_grace_period' => $isInGracePeriod,
                 ],
                 'note' => "Submissions will be deleted {$retentionDays} days after the portal deadline ({$deletionDate})",
             ]);
@@ -327,8 +344,14 @@ class GraduationSubmissionController extends Controller
                 'submission' => [
                     'id' => $submissionId,
                     'status' => $submission['status'],
-                    'validation_result' => $validationResult,
+                    'student_identifier' => $submission['student_identifier'],
+                    'curriculum_id' => $submission['curriculum_id'],
+                    'courses' => $submission['courses'],
+                    'submitted_at' => $submission['submitted_at'],
+                    'expires_at' => $submission['expires_at'],
+                    'deletion_date' => $submission['deletion_date'] ?? null,
                 ],
+                'validation' => $validationResult,
             ]);
 
         } catch (\Exception $e) {

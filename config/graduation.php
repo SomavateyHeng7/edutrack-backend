@@ -12,6 +12,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Grace Period
+    |--------------------------------------------------------------------------
+    | How many days after the portal deadline students can still submit.
+    | This extends the submission window, NOT the data retention window.
+    | In days.
+    */
+    'grace_period_days' => (int) env('GRADUATION_GRACE_PERIOD_DAYS', 7),
+
+    /*
+    |--------------------------------------------------------------------------
     | Submission Retention
     |--------------------------------------------------------------------------
     | How many days after the portal deadline to keep submission data.

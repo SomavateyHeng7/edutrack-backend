@@ -135,7 +135,7 @@ class GraduationPortal extends Model
     // ========================
 
     /**
-     * Check if the portal is currently active
+     * Check if the portal is currently active (including grace period)
      */
     public function isActive(): bool
     {
@@ -147,11 +147,37 @@ class GraduationPortal extends Model
             return false;
         }
         
-        if ($this->deadline && $this->deadline->isPast()) {
-            return false;
+        if ($this->deadline) {
+            $gracePeriodEnd = $this->deadline->copy()->addDays(config('graduation.grace_period_days', 7));
+            if (now()->greaterThan($gracePeriodEnd)) {
+                return false;
+            }
         }
         
         return true;
+    }
+
+    /**
+     * Get the grace period end date
+     */
+    public function getGracePeriodEnd(): ?\Carbon\Carbon
+    {
+        if (!$this->deadline) {
+            return null;
+        }
+        return $this->deadline->copy()->addDays(config('graduation.grace_period_days', 7));
+    }
+
+    /**
+     * Check if the portal is currently in its grace period
+     */
+    public function isInGracePeriod(): bool
+    {
+        if (!$this->deadline) {
+            return false;
+        }
+        return now()->greaterThan($this->deadline) 
+            && now()->lessThanOrEqualTo($this->getGracePeriodEnd());
     }
 
     /**
@@ -181,15 +207,18 @@ class GraduationPortal extends Model
     // ========================
 
     /**
-     * Scope to get only active portals
+     * Scope to get only active portals (including those in grace period)
      */
     public function scopeActive($query)
     {
+        $gracePeriodDays = config('graduation.grace_period_days', 7);
+
         return $query->where('status', 'active')
                      ->whereNull('closed_at')
-                     ->where(function ($q) {
+                     ->where(function ($q) use ($gracePeriodDays) {
                          $q->whereNull('deadline')
-                           ->orWhere('deadline', '>=', now());
+                           ->orWhere('deadline', '>=', now())
+                           ->orWhereRaw("deadline + INTERVAL '{$gracePeriodDays} days' >= NOW()");
                      });
     }
 

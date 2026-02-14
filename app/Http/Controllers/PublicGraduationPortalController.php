@@ -42,6 +42,9 @@ class PublicGraduationPortalController extends Controller
 
             // Format for public display (hide sensitive info)
             $formattedPortals = $portals->map(function ($portal) {
+                $gracePeriodEnd = $portal->getGracePeriodEnd();
+                $isInGracePeriod = $portal->isInGracePeriod();
+
                 return [
                     'id' => (string) $portal->id,
                     'name' => $portal->name,
@@ -49,6 +52,8 @@ class PublicGraduationPortalController extends Controller
                     'batch' => $portal->batch,
                     'deadline' => $portal->deadline?->format('Y-m-d'),
                     'daysRemaining' => $portal->deadline ? now()->diffInDays($portal->deadline, false) : null,
+                    'grace_period_end' => $gracePeriodEnd?->toIso8601String(),
+                    'is_in_grace_period' => $isInGracePeriod,
                     'acceptedFormats' => $portal->accepted_formats ?? ['.xlsx', '.xls', '.csv'],
                     'maxFileSizeMb' => $portal->max_file_size_mb ?? 5,
                     'curriculum' => $portal->curriculum ? [
@@ -91,6 +96,9 @@ class PublicGraduationPortalController extends Controller
             ], 410);
         }
 
+        $gracePeriodEnd = $portal->getGracePeriodEnd();
+        $isInGracePeriod = $portal->isInGracePeriod();
+
         return response()->json([
             'portal' => [
                 'id' => (string) $portal->id,
@@ -99,6 +107,8 @@ class PublicGraduationPortalController extends Controller
                 'batch' => $portal->batch,
                 'deadline' => $portal->deadline?->format('Y-m-d'),
                 'daysRemaining' => $portal->deadline ? now()->diffInDays($portal->deadline, false) : null,
+                'grace_period_end' => $gracePeriodEnd?->toIso8601String(),
+                'is_in_grace_period' => $isInGracePeriod,
                 'acceptedFormats' => $portal->accepted_formats ?? ['.xlsx', '.xls', '.csv'],
                 'maxFileSizeMb' => $portal->max_file_size_mb ?? 5,
                 'curriculum' => $portal->curriculum ? [
