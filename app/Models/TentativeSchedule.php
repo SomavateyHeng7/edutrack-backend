@@ -23,6 +23,7 @@ class TentativeSchedule extends Model
         'curriculum_id',
         'created_by',
         'is_published',
+        'is_active',
     ];
 
     protected $casts = [
@@ -30,6 +31,7 @@ class TentativeSchedule extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'is_published' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     /**
