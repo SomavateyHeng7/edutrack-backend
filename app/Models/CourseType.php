@@ -14,7 +14,7 @@ class CourseType extends Model
     protected $fillable = [
         'name',
         'color',
-        'department_id',
+        'faculty_id',
         'parent_course_type_id',
         'position',
         'seeded',
@@ -29,9 +29,9 @@ class CourseType extends Model
      * Relationships
      * ===================================================== */
 
-    public function department(): BelongsTo
+    public function faculty(): BelongsTo
     {
-        return $this->belongsTo(Department::class);
+        return $this->belongsTo(Faculty::class);
     }
 
     public function departmentCourseTypes(): HasMany

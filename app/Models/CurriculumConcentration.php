@@ -13,7 +13,7 @@ class CurriculumConcentration extends Model
     protected $fillable = [
         'curriculum_id',
         'concentration_id',
-        'required_courses',
+        'required_credits',
     ];
 
     public function curriculum(): BelongsTo

@@ -331,7 +331,7 @@ class CurriculaController extends Controller
         $concentrations = $curriculum->curriculumConcentrations->map(function ($cc) {
             return [
                 'id' => $cc->concentration_id,
-                'requiredCourses' => $cc->required_courses,
+                'requiredCredits' => $cc->required_credits,
                 'concentration' => [
                     'id' => $cc->concentration->id,
                     'name' => $cc->concentration->name,
@@ -367,7 +367,7 @@ class CurriculaController extends Controller
 
         $validated = $request->validate([
             'concentrationId' => 'required|exists:concentrations,id',
-            'requiredCourses' => 'nullable|integer|min:1',
+            'requiredCredits' => 'nullable|integer|min:1|max:30',
         ]);
 
         // Check if concentration is already added
@@ -382,7 +382,7 @@ class CurriculaController extends Controller
         $curriculumConcentration = CurriculumConcentration::create([
             'curriculum_id' => $id,
             'concentration_id' => $validated['concentrationId'],
-            'required_courses' => $validated['requiredCourses'] ?? 1,
+            'required_credits' => $validated['requiredCredits'] ?? 3,
         ]);
 
         return response()->json([
@@ -405,7 +405,7 @@ class CurriculaController extends Controller
         }
 
         $validated = $request->validate([
-            'requiredCourses' => 'required|integer|min:1',
+            'requiredCredits' => 'required|integer|min:1|max:30',
         ]);
 
         $curriculumConcentration = CurriculumConcentration::where('curriculum_id', $id)
@@ -417,7 +417,7 @@ class CurriculaController extends Controller
         }
 
         $curriculumConcentration->update([
-            'required_courses' => $validated['requiredCourses'],
+            'required_credits' => $validated['requiredCredits'],
         ]);
 
         return response()->json([
@@ -592,7 +592,7 @@ class CurriculaController extends Controller
                     CurriculumConcentration::create([
                         'curriculum_id' => $newCurriculum->id,
                         'concentration_id' => $concentration->concentration_id,
-                        'required_courses' => $concentration->required_courses,
+                        'required_credits' => $concentration->required_credits,
                     ]);
                 }
 

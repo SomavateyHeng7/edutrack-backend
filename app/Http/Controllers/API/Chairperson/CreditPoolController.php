@@ -695,15 +695,15 @@ class CreditPoolController extends Controller
             }
 
             $curriculum = Curriculum::findOrFail($curriculumId);
-            $departmentId = $curriculum->department_id;
+            $facultyId = $curriculum->department->faculty_id;
 
             // Get course types already used in pools
             $usedCourseTypeIds = CurriculumCreditPool::where('curriculum_id', $curriculumId)
                 ->pluck('top_level_course_type_id')
                 ->toArray();
 
-            // Get all top-level course types (those without parent)
-            $availableTypes = CourseType::where('department_id', $departmentId)
+            // Get all top-level course types (those without parent) for this faculty
+            $availableTypes = CourseType::where('faculty_id', $facultyId)
                 ->whereNull('parent_course_type_id')
                 ->whereNotIn('id', $usedCourseTypeIds)
                 ->orderBy('position')

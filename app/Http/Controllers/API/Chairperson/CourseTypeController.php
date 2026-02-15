@@ -29,19 +29,12 @@ class CourseTypeController extends Controller
             return response()->json(['error' => 'Chairperson access required'], 403);
         }
 
-        $faculty = $user->faculty?->load('departments');
-        if (!$faculty || $faculty->departments->isEmpty()) {
-            return response()->json(['error' => 'User faculty or department not found'], 404);
+        $faculty = $user->faculty;
+        if (!$faculty) {
+            return response()->json(['error' => 'User faculty not found'], 404);
         }
 
-        $departmentId = $request->query('departmentId')
-            ?? $faculty->departments->first()->id;
-
-        if (!$faculty->departments->pluck('id')->contains($departmentId)) {
-            return response()->json(['error' => 'Department not accessible'], 403);
-        }
-
-        $courseTypes = CourseType::where('department_id', $departmentId)
+        $courseTypes = CourseType::where('faculty_id', $faculty->id)
             ->withCount(['children', 'departmentCourseTypes as usage_count'])
             ->orderBy('position')
             ->orderBy('name')
@@ -54,7 +47,7 @@ class CourseTypeController extends Controller
                 'id' => $t->id,
                 'name' => $t->name,
                 'color' => $t->color,
-                'departmentId' => $t->department_id,
+                'facultyId' => $t->faculty_id,
                 'parentId' => $t->parent_course_type_id,
                 'position' => $t->position,
                 'childCount' => $t->children_count,
@@ -80,19 +73,12 @@ class CourseTypeController extends Controller
             return response()->json(['error' => 'Chairperson access required'], 403);
         }
 
-        $faculty = $user->faculty?->load('departments');
-        if (!$faculty || $faculty->departments->isEmpty()) {
-            return response()->json(['error' => 'User faculty or department not found'], 404);
+        $faculty = $user->faculty;
+        if (!$faculty) {
+            return response()->json(['error' => 'User faculty not found'], 404);
         }
 
-        $departmentId = $request->query('departmentId')
-            ?? $faculty->departments->first()->id;
-
-        if (!$faculty->departments->pluck('id')->contains($departmentId)) {
-            return response()->json(['error' => 'Department not accessible'], 403);
-        }
-
-        $courseTypes = CourseType::where('department_id', $departmentId)
+        $courseTypes = CourseType::where('faculty_id', $faculty->id)
             ->withCount('departmentCourseTypes as usage_count')
             ->orderBy('position')
             ->get();
@@ -116,10 +102,10 @@ class CourseTypeController extends Controller
             return response()->json(['error' => 'Chairperson access required'], 403);
         }
 
-        $facultyDepartmentIds = $user->department->faculty->departments->pluck('id');
+        $facultyId = $user->faculty_id;
 
         $courseType = CourseType::where('id', $id)
-            ->whereIn('department_id', $facultyDepartmentIds)
+            ->where('faculty_id', $facultyId)
             ->withCount(['children', 'departmentCourseTypes as usage_count'])
             ->first();
 
@@ -131,7 +117,7 @@ class CourseTypeController extends Controller
             'id' => $courseType->id,
             'name' => $courseType->name,
             'color' => $courseType->color,
-            'departmentId' => $courseType->department_id,
+            'facultyId' => $courseType->faculty_id,
             'parentId' => $courseType->parent_course_type_id,
             'position' => $courseType->position,
             'childCount' => $courseType->children_count,
@@ -156,22 +142,15 @@ class CourseTypeController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:50',
             'color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'departmentId' => 'nullable|string',
             'parentId' => 'nullable|string|exists:course_types,id',
             'position' => 'nullable|integer|min:0',
         ]);
 
-        $faculty = $user->faculty->load('departments');
-        $departmentId = $data['departmentId']
-            ?? $faculty->departments->first()->id;
+        $facultyId = $user->faculty_id;
 
-        if (!$faculty->departments->pluck('id')->contains($departmentId)) {
-            return response()->json(['error' => 'Department not accessible'], 403);
-        }
-
-        // Check unique name within same parent level
+        // Check unique name within same parent level for this faculty
         $existingQuery = CourseType::where('name', $data['name'])
-            ->where('department_id', $departmentId);
+            ->where('faculty_id', $facultyId);
         
         if (isset($data['parentId'])) {
             $existingQuery->where('parent_course_type_id', $data['parentId']);
@@ -184,14 +163,14 @@ class CourseTypeController extends Controller
         }
 
         // Calculate next position if not provided
-        $position = $data['position'] ?? CourseType::where('department_id', $departmentId)
+        $position = $data['position'] ?? CourseType::where('faculty_id', $facultyId)
             ->where('parent_course_type_id', $data['parentId'] ?? null)
             ->max('position') + 1;
 
         $courseType = CourseType::create([
             'name' => $data['name'],
             'color' => $data['color'],
-            'department_id' => $departmentId,
+            'faculty_id' => $facultyId,
             'parent_course_type_id' => $data['parentId'] ?? null,
             'position' => $position,
         ]);
@@ -203,7 +182,7 @@ class CourseTypeController extends Controller
             'id' => $courseType->id,
             'name' => $courseType->name,
             'color' => $courseType->color,
-            'departmentId' => $courseType->department_id,
+            'facultyId' => $courseType->faculty_id,
             'parentId' => $courseType->parent_course_type_id,
             'position' => $courseType->position,
             'childCount' => $courseType->children_count ?? 0,
@@ -221,10 +200,10 @@ class CourseTypeController extends Controller
     public function update(Request $request, $id)
     {
         $user = Auth::user();
-        $facultyDepartmentIds = $user->department->faculty->departments->pluck('id');
+        $facultyId = $user->faculty_id;
 
         $courseType = CourseType::where('id', $id)
-            ->whereIn('department_id', $facultyDepartmentIds)
+            ->where('faculty_id', $facultyId)
             ->first();
 
         if (!$courseType) {
@@ -257,7 +236,7 @@ class CourseTypeController extends Controller
 
         // Check unique name within same parent level (excluding self)
         $existingQuery = CourseType::where('name', $data['name'])
-            ->where('department_id', $courseType->department_id)
+            ->where('faculty_id', $facultyId)
             ->where('id', '!=', $id);
         
         if (isset($data['parentId'])) {
@@ -284,7 +263,7 @@ class CourseTypeController extends Controller
             'id' => $courseType->id,
             'name' => $courseType->name,
             'color' => $courseType->color,
-            'departmentId' => $courseType->department_id,
+            'facultyId' => $courseType->faculty_id,
             'parentId' => $courseType->parent_course_type_id,
             'position' => $courseType->position,
             'childCount' => $courseType->children_count ?? 0,
@@ -302,10 +281,10 @@ class CourseTypeController extends Controller
     public function destroy($id)
     {
         $user = Auth::user();
-        $facultyDepartmentIds = $user->department->faculty->departments->pluck('id');
+        $facultyId = $user->faculty_id;
 
         $courseType = CourseType::where('id', $id)
-            ->whereIn('department_id', $facultyDepartmentIds)
+            ->where('faculty_id', $facultyId)
             ->withCount('children')
             ->first();
 
@@ -348,12 +327,12 @@ class CourseTypeController extends Controller
             'updates.*.position' => 'required|integer|min:0',
         ]);
 
-        $facultyDepartmentIds = $user->department->faculty->departments->pluck('id');
+        $facultyId = $user->faculty_id;
 
-        DB::transaction(function () use ($data, $facultyDepartmentIds) {
+        DB::transaction(function () use ($data, $facultyId) {
             foreach ($data['updates'] as $update) {
                 $courseType = CourseType::where('id', $update['id'])
-                    ->whereIn('department_id', $facultyDepartmentIds)
+                    ->where('faculty_id', $facultyId)
                     ->first();
 
                 if (!$courseType) {
