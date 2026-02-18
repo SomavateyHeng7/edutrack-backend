@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use App\Models\Curriculum;
 
 class PublicCurriculumController extends Controller
@@ -72,7 +73,7 @@ class PublicCurriculumController extends Controller
                             return optional($typeAssignment->courseType)->name;
                         })
                         ->filter()
-                        ->first() ?? 'Unassigned';
+                        ->first() ?? 'Uncategorized';
 
                     return [
                         'id' => $curriculumCourse->id,
@@ -136,6 +137,7 @@ class PublicCurriculumController extends Controller
     public function show($id)
     {
         try {
+            // Allow accessing inactive curricula for student progress tracking
             $curriculum = Curriculum::with([
                 'department',
                 'faculty',
@@ -146,7 +148,7 @@ class PublicCurriculumController extends Controller
                 'curriculumCourses.curriculumCorequisites.corequisiteCourse.course',
                 'curriculumConstraints',
                 'electiveRules'
-            ])->where('is_active', true)->findOrFail($id);
+            ])->findOrFail($id);
 
             $courses = $curriculum->curriculumCourses->map(function ($curriculumCourse) use ($curriculum) {
                 $course = $curriculumCourse->course;
@@ -183,7 +185,7 @@ class PublicCurriculumController extends Controller
                     })
                     ->first();
 
-                $category = optional($typeAssignment?->courseType)->name ?? 'Unassigned';
+                $category = optional($typeAssignment?->courseType)->name ?? 'Uncategorized';
                 
                 $courseType = $typeAssignment?->courseType ? [
                     'id' => $typeAssignment->courseType->id,
@@ -236,7 +238,24 @@ class PublicCurriculumController extends Controller
             ];
 
             return response()->json(['curriculum' => $sanitizedCurriculum]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $error) {
+            return response()->json(
+                [
+                    'error' => [
+                        'code' => 'NOT_FOUND',
+                        'message' => 'Curriculum not found',
+                        'details' => "No curriculum found with ID: {$id}"
+                    ]
+                ],
+                404
+            );
         } catch (\Exception $error) {
+            Log::error('Error fetching curriculum', [
+                'curriculum_id' => $id,
+                'error' => $error->getMessage(),
+                'trace' => $error->getTraceAsString()
+            ]);
+            
             return response()->json(
                 [
                     'error' => [
@@ -255,7 +274,7 @@ class PublicCurriculumController extends Controller
     {
         try {
             $curriculum = Curriculum::with([
-                'curriculumBlacklists.blacklist.blacklistCourses.course'
+                'curriculumBlacklists.blacklist.courses.course'
             ])->findOrFail($id);
 
             $blacklists = $curriculum->curriculumBlacklists->map(function ($curriculumBlacklist) {
@@ -269,7 +288,7 @@ class PublicCurriculumController extends Controller
                     'name' => $blacklist->name,
                     'description' => $blacklist->description,
                     'createdAt' => $curriculumBlacklist->created_at,
-                    'courses' => $blacklist->blacklistCourses->map(function ($blacklistCourse) {
+                    'courses' => $blacklist->courses->map(function ($blacklistCourse) {
                         return [
                             'course' => [
                                 'code' => $blacklistCourse->course->code,

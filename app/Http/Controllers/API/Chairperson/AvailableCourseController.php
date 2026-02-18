@@ -44,9 +44,9 @@ class AvailableCourseController extends Controller
             $course = $currCourse->course;
 
             // Category logic
-            $category = 'Unassigned';
+            $category = 'Uncategorized';
             if ($course->departmentCourseTypes && count($course->departmentCourseTypes) > 0) {
-                $category = $course->departmentCourseTypes[0]->courseType->name ?? 'Unassigned';
+                $category = $course->departmentCourseTypes[0]->courseType->name ?? 'Uncategorized';
             }
 
             // Prerequisites

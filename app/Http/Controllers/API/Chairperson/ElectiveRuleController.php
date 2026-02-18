@@ -78,7 +78,7 @@ class ElectiveRuleController extends Controller
                 'id' => $cc->course->id,
                 'code' => $cc->course->code,
                 'name' => $cc->course->name,
-                'category' => $cc->course->departmentCourseTypes[0]->courseType->name ?? 'Unassigned',
+                'category' => $cc->course->departmentCourseTypes[0]->courseType->name ?? 'Uncategorized',
                 'credits' => $cc->course->credits,
                 'isRequired' => (bool) $cc->is_required,
                 'semester' => $cc->semester,

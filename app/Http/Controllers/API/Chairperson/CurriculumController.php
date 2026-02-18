@@ -210,7 +210,7 @@ class CurriculumController extends Controller
             return response()->json(['error' => 'Curriculum not found'], 404);
         }
 
-        $blacklists = $curriculum->curriculumBlacklists()->with('blacklist.blacklistCourses.course')->get();
+        $blacklists = $curriculum->curriculumBlacklists()->with('blacklist.courses.course')->get();
 
         return response()->json(['blacklists' => $blacklists]);
     }

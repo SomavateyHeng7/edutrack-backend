@@ -128,6 +128,17 @@ class CurriculumDataSeeder extends Seeder
         } else {
             $this->processExcel($filePath, $curriculum);
         }
+
+        // Calculate and update total credits required from linked courses
+        $totalCredits = CurriculumCourse::where('curriculum_id', $curriculum->id)
+            ->with('course')
+            ->get()
+            ->sum(function ($curriculumCourse) {
+                return (int)($curriculumCourse->course->credits ?? 0);
+            });
+        
+        $curriculum->update(['total_credits_required' => $totalCredits]);
+        $this->command->info("  → Total Credits Required: {$totalCredits}");
     }
 
     private function processCSV($filePath, $curriculum): void

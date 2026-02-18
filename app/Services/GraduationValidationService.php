@@ -337,7 +337,7 @@ class GraduationValidationService
         $errors = [];
 
         // Get all blacklists for this curriculum
-        $blacklists = CurriculumBlacklist::with(['blacklist.blacklistCourses.course'])
+        $blacklists = CurriculumBlacklist::with(['blacklist.courses.course'])
             ->where('curriculum_id', $curriculumId)
             ->get();
 
@@ -347,7 +347,7 @@ class GraduationValidationService
             $blacklist = $curriculumBlacklist->blacklist;
             if (!$blacklist) continue;
 
-            $blacklistCodes = $blacklist->blacklistCourses->pluck('course.code')
+            $blacklistCodes = $blacklist->courses->pluck('course.code')
                 ->map(fn($c) => strtoupper($c))
                 ->toArray();
 
