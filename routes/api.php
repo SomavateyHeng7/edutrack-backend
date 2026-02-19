@@ -358,6 +358,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         
         // Portal actions
         Route::post('/{id}/close', [GraduationPortalController::class, 'close']);
+        Route::post('/{id}/reopen', [GraduationPortalController::class, 'reopen']);
         Route::post('/{id}/regenerate-pin', [GraduationPortalController::class, 'regeneratePin']);
         
         // Cache-based submissions (PDPA compliant)

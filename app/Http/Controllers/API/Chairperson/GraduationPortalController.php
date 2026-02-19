@@ -753,6 +753,64 @@ class GraduationPortalController extends Controller
     }
     
     /**
+     * Reopen a closed graduation portal
+     */
+    public function reopen(Request $request, $id)
+    {
+        try {
+            $portal = GraduationPortal::findOrFail($id);
+            
+            // Verify access
+            $user = $request->user();
+            if ($user->role === 'CHAIRPERSON' && 
+                $user->department_id !== $portal->department_id) {
+                return response()->json([
+                    'error' => ['message' => 'Access denied']
+                ], 403);
+            }
+            
+            // Only allow reopening closed portals
+            if ($portal->status !== 'closed') {
+                return response()->json([
+                    'error' => ['message' => 'Only closed portals can be reopened']
+                ], 400);
+            }
+            
+            $portal->reopen();
+            
+            // Log the action
+            \App\Models\GraduationPortalLog::log(
+                $portal->id,
+                'REOPENED',
+                $user->id,
+                ['reopened_at' => now()->toIso8601String()]
+            );
+            
+            return response()->json([
+                'message' => 'Portal reopened successfully',
+                'portal' => $this->formatPortalResponse($portal->fresh()),
+            ]);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => ['message' => 'Portal not found']
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Error reopening portal: ' . $e->getMessage(), [
+                'portalId' => $id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'error' => [
+                    'message' => 'Failed to reopen portal',
+                    'details' => $e->getMessage()
+                ]
+            ], 500);
+        }
+    }
+    
+    /**
      * Regenerate PIN for a graduation portal
      */
     public function regeneratePin(Request $request, $id)

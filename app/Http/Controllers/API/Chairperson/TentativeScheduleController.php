@@ -612,6 +612,7 @@ class TentativeScheduleController extends Controller
                     'departmentId' => $schedule->department_id,
                     'batch' => $schedule->batch,
                     'isPublished' => true,
+                    'isActive' => $schedule->is_active ?? false,
                     'coursesCount' => $schedule->courses->count(),
                     'createdAt' => $schedule->created_at->toISOString(),
                     'updatedAt' => $schedule->updated_at->toISOString(),
