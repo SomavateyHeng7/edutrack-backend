@@ -21,6 +21,7 @@ class AuditLog extends Model
         'course_id',
         'concentration_id',
         'blacklist_id',
+        'ip_address',
     ];
 
     protected $casts = [

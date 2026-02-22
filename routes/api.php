@@ -18,6 +18,7 @@ use App\Http\Controllers\API\Admin\FacultyController;
 use App\Http\Controllers\API\SystemSettingController;
 use App\Http\Controllers\PublicConcentrationController;
 use App\Http\Controllers\API\Admin\DepartmentController;
+use App\Http\Controllers\API\Admin\AuditController;
 
 // Chairperson
 use App\Http\Controllers\API\Download\DownloadController;
@@ -102,7 +103,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/user', function (Request $request) {
         $user = $request->user();
         if ($user) {
-            return response()->json($user->load(['faculty', 'department']));
+            return response()->json($user->load(['faculty', 'department', 'advisor']));
         }
         return response()->json(null, 401);
     });
@@ -144,6 +145,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/users/{id}', [UserController::class, 'show']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+    // Audit Logs
+    Route::get('/audit-logs', [AuditController::class, 'index']);
+    Route::post('/audit-logs', [AuditController::class, 'store']);
 
     // Curricula
     Route::get('/curricula', [CurriculaController::class, 'index']);

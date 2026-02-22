@@ -7,10 +7,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Models\User;
 use App\Models\Faculty;
 use App\Models\AuditLog;
+use App\Models\Blacklist;
+use App\Models\Concentration;
+use App\Models\Curriculum;
+use App\Models\DepartmentCourseType;
 
 class UserController extends Controller
 {
@@ -26,11 +31,27 @@ class UserController extends Controller
                 return response()->json(['error' => 'Missing required field: userId'], 400);
             }
 
-            // Delete all audit logs for the user
-            AuditLog::where('user_id', $userId)->delete();
+            $userToDelete = User::find($userId);
+            if (!$userToDelete) {
+                return response()->json(['error' => 'User not found'], 404);
+            }
 
-            // Delete the user
-            User::where('id', $userId)->delete();
+            DB::transaction(function () use ($userId) {
+                // Delete all audit logs for the user
+                AuditLog::where('user_id', $userId)->delete();
+
+                // Nullify foreign key references so deletion doesn't fail
+                Blacklist::where('created_by_id', $userId)->update(['created_by_id' => null]);
+                Curriculum::where('created_by_id', $userId)->update(['created_by_id' => null]);
+                Concentration::where('created_by_id', $userId)->update(['created_by_id' => null]);
+                DepartmentCourseType::where('assigned_by_id', $userId)->update(['assigned_by_id' => null]);
+
+                // Remove advisor references from other users
+                User::where('advisor_id', $userId)->update(['advisor_id' => null]);
+
+                // Delete the user
+                User::where('id', $userId)->delete();
+            });
 
             return response()->json(['message' => 'User and related audit logs deleted successfully'], 200);
 
