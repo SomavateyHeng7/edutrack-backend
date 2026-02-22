@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\AuditLog;
 
 class AuthController extends Controller
 {
@@ -48,7 +49,24 @@ class AuthController extends Controller
             }
 
             // Use Laravel's built-in session-based authentication for SPA
-            auth()->login($user);
+            auth()->guard('web')->login($user);
+
+            // Log login for chairperson and super admin users
+            if (in_array($user->role, ['CHAIRPERSON', 'SUPER_ADMIN', 'ADVISOR'])) {
+                try {
+                    AuditLog::create([
+                        'user_id' => $user->id,
+                        'entity_type' => 'AUTH',
+                        'entity_id' => $user->id,
+                        'action' => 'LOGIN',
+                        'description' => "{$user->name} ({$user->role}) logged in",
+                        'ip_address' => $request->ip(),
+                    ]);
+                } catch (\Exception $e) {
+                    // Don't fail login if audit logging fails
+                    \Illuminate\Support\Facades\Log::warning('Failed to create login audit log: ' . $e->getMessage());
+                }
+            }
 
             return response()->json([
                 'user' => [
@@ -79,7 +97,25 @@ class AuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         try {
-            auth()->logout();
+            $user = auth()->guard('web')->user();
+            
+            // Log logout for chairperson and super admin users
+            if ($user && in_array($user->role, ['CHAIRPERSON', 'SUPER_ADMIN', 'ADVISOR'])) {
+                try {
+                    AuditLog::create([
+                        'user_id' => $user->id,
+                        'entity_type' => 'AUTH',
+                        'entity_id' => $user->id,
+                        'action' => 'LOGOUT',
+                        'description' => "{$user->name} ({$user->role}) logged out",
+                        'ip_address' => $request->ip(),
+                    ]);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to create logout audit log: ' . $e->getMessage());
+                }
+            }
+
+            auth()->guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
             

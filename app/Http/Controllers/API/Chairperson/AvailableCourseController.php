@@ -24,8 +24,8 @@ class AvailableCourseController extends Controller
 
         // Fetch curriculum with its courses and their prerequisites
         $curriculum = Curriculum::with([
-            'curriculumCourses.course.prerequisites.prerequisite',
-            'curriculumCourses.course.corequisites.corequisite',
+            'curriculumCourses.course.prerequisites',
+            'curriculumCourses.course.corequisites',
             'curriculumCourses.course.departmentCourseTypes' => function ($q) use ($departmentId) {
                 $q->where('department_id', $departmentId)->with('courseType');
             },
@@ -49,11 +49,11 @@ class AvailableCourseController extends Controller
                 $category = $course->departmentCourseTypes[0]->courseType->name ?? 'Uncategorized';
             }
 
-            // Prerequisites
-            $prerequisites = $course->prerequisites->map(fn($prereq) => $prereq->prerequisite->code)->toArray();
+            // Prerequisites (BelongsToMany returns Course models directly)
+            $prerequisites = $course->prerequisites->map(fn($prereq) => $prereq->code)->toArray();
 
-            // Corequisites
-            $corequisites = $course->corequisites->map(fn($coreq) => $coreq->corequisite->code)->toArray();
+            // Corequisites (BelongsToMany returns Course models directly)
+            $corequisites = $course->corequisites->map(fn($coreq) => $coreq->code)->toArray();
 
             // Banned combinations
             $bannedWith = [];
@@ -69,20 +69,26 @@ class AvailableCourseController extends Controller
             preg_match('/\d/', $course->code, $levelMatch);
             $level = isset($levelMatch[0]) ? intval($levelMatch[0]) : 1;
 
+            // Use CurriculumCourse overrides if set, otherwise fall back to Course defaults
+            $requiresPermission = $currCourse->override_requires_permission ?? $course->requires_permission ?? false;
+            $summerOnly = $currCourse->override_summer_only ?? $course->summer_only ?? false;
+            $requiresSeniorStanding = $currCourse->override_requires_senior_standing ?? $course->requires_senior_standing ?? false;
+            $minCreditThreshold = $currCourse->override_min_credit_threshold ?? $course->min_credit_threshold ?? null;
+
             $availableCourses[] = [
                 'code' => $course->code,
                 'title' => $course->name,
-                'credits' => $course->creditHours ?? $course->credits ?? 0,
+                'credits' => $course->credit_hours ?? $course->credits ?? 0,
                 'description' => $course->description ?? '',
                 'prerequisites' => $prerequisites,
                 'corequisites' => $corequisites,
                 'bannedWith' => array_values(array_unique($bannedWith)),
                 'category' => $category,
                 'level' => $level,
-                'requiresPermission' => $course->requiresPermission ?? false,
-                'summerOnly' => $course->summerOnly ?? false,
-                'requiresSeniorStanding' => $course->requiresSeniorStanding ?? false,
-                'minCreditThreshold' => $course->minCreditThreshold ?? null,
+                'requiresPermission' => (bool) $requiresPermission,
+                'summerOnly' => (bool) $summerOnly,
+                'requiresSeniorStanding' => (bool) $requiresSeniorStanding,
+                'minCreditThreshold' => $minCreditThreshold,
             ];
         }
 
@@ -109,8 +115,8 @@ class AvailableCourseController extends Controller
                 $category = $course->departmentCourseTypes[0]->courseType->name ?? 'Free Elective';
             }
 
-            $prerequisites = $course->prerequisites->map(fn($prereq) => $prereq->prerequisite->code)->toArray();
-            $corequisites = $course->corequisites->map(fn($coreq) => $coreq->corequisite->code)->toArray();
+            $prerequisites = $course->prerequisites->map(fn($prereq) => $prereq->code)->toArray();
+            $corequisites = $course->corequisites->map(fn($coreq) => $coreq->code)->toArray();
 
             $bannedWith = [];
             foreach ($course->blacklistCourses as $blacklistCourse) {
@@ -127,13 +133,17 @@ class AvailableCourseController extends Controller
             $additionalCourses[] = [
                 'code' => $course->code,
                 'title' => $course->name,
-                'credits' => $course->creditHours ?? $course->credits ?? 0,
+                'credits' => $course->credit_hours ?? $course->credits ?? 0,
                 'description' => $course->description ?? '',
                 'prerequisites' => $prerequisites,
                 'corequisites' => $corequisites,
                 'bannedWith' => array_values(array_unique($bannedWith)),
                 'category' => $category,
                 'level' => $level,
+                'requiresPermission' => (bool) ($course->requires_permission ?? false),
+                'summerOnly' => (bool) ($course->summer_only ?? false),
+                'requiresSeniorStanding' => (bool) ($course->requires_senior_standing ?? false),
+                'minCreditThreshold' => $course->min_credit_threshold ?? null,
             ];
         }
 

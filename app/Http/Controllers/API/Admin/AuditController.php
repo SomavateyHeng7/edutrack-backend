@@ -10,7 +10,8 @@ use App\Models\AuditLog;
 class AuditController extends Controller
 {
     /**
-     * GET /api/admin/audit
+     * GET /api/audit-logs
+     * Fetch audit logs with optional filtering
      */
     public function index(Request $request)
     {
@@ -20,8 +21,27 @@ class AuditController extends Controller
         }
 
         $limit = (int) $request->input('limit', 50);
+        $page = (int) $request->input('page', 1);
+        $action = $request->input('action');
+        $userId = $request->input('user_id');
+        $entityType = $request->input('entity_type');
 
-        $logs = AuditLog::orderByDesc('created_at')->paginate($limit);
+        $query = AuditLog::with('user:id,name,email,role')
+            ->orderByDesc('created_at');
+
+        if ($action) {
+            $query->where('action', $action);
+        }
+
+        if ($userId) {
+            $query->where('user_id', $userId);
+        }
+
+        if ($entityType) {
+            $query->where('entity_type', $entityType);
+        }
+
+        $logs = $query->paginate($limit, ['*'], 'page', $page);
 
         return response()->json([
             'logs' => $logs->items(),
@@ -35,7 +55,8 @@ class AuditController extends Controller
     }
 
     /**
-     * POST /api/admin/audit
+     * POST /api/audit-logs
+     * Record an audit log entry
      */
     public function store(Request $request)
     {
@@ -46,21 +67,26 @@ class AuditController extends Controller
 
         $validated = $request->validate([
             'action' => 'required|string|max:255',
-            'resource' => 'required|string|max:255',
-            'resourceId' => 'nullable',
-            'details' => 'nullable',
+            'entity_type' => 'required|string|max:255',
+            'entity_id' => 'nullable|string',
+            'description' => 'nullable|string',
+            'changes' => 'nullable',
+            'curriculum_id' => 'nullable|string',
+            'course_id' => 'nullable|string',
         ]);
 
-        AuditLog::create([
+        $log = AuditLog::create([
             'user_id' => $user->id,
-            'user_name' => $user->name,
             'action' => $validated['action'],
-            'resource' => $validated['resource'],
-            'resource_id' => $validated['resourceId'] ?? null,
-            'details' => $validated['details'] ?? null,
+            'entity_type' => $validated['entity_type'],
+            'entity_id' => $validated['entity_id'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'changes' => $validated['changes'] ?? null,
+            'curriculum_id' => $validated['curriculum_id'] ?? null,
+            'course_id' => $validated['course_id'] ?? null,
             'ip_address' => $request->ip(),
         ]);
 
-        return response()->json(['message' => 'Audit log recorded successfully'], 201);
+        return response()->json(['message' => 'Audit log recorded successfully', 'log' => $log], 201);
     }
 }
