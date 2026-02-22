@@ -4,7 +4,137 @@
 
 **Status:** REQ-1 through REQ-6 (except REQ-3/REQ-4) fully implemented. Breaking changes reviewed and resolved.
 
-**Last Updated:** February 11, 2026
+**Last Updated:** February 20, 2026
+
+---
+
+## 🔗 API ENDPOINT REFERENCE
+
+### Public Endpoints (No Auth Required - For Students)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/public/graduation-portals` | List all active portals |
+| GET | `/api/public/graduation-portals/{id}` | Get portal details |
+| POST | `/api/public/graduation-portals/{id}/verify-pin` | Verify portal PIN |
+| GET | `/api/public/graduation-portals/{id}/curricula` | Get curricula for portal |
+| GET | `/api/public/graduation-portals/faculties` | List faculties |
+| GET | `/api/public/graduation-portals/departments` | List departments |
+| POST | `/api/graduation-portals/{id}/submit` | Submit to portal (requires PIN session) |
+
+### Chairperson Endpoints (Auth Required)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/chairperson/graduation-portals` | List portals for department |
+| POST | `/api/chairperson/graduation-portals` | Create portal |
+| GET | `/api/chairperson/graduation-portals/{id}` | Get portal details |
+| PUT | `/api/chairperson/graduation-portals/{id}` | Update portal |
+| DELETE | `/api/chairperson/graduation-portals/{id}` | Delete portal |
+| POST | `/api/chairperson/graduation-portals/{id}/close` | Close portal |
+| POST | `/api/chairperson/graduation-portals/{id}/reopen` | Reopen closed portal |
+| POST | `/api/chairperson/graduation-portals/{id}/regenerate-pin` | Regenerate PIN |
+| GET | `/api/chairperson/graduation-portals/{id}/submissions` | List submissions |
+| POST | `/api/chairperson/graduation-portals/{id}/submissions/{subId}/process` | Process submission |
+| POST | `/api/chairperson/graduation-portals/{id}/submissions/{subId}/approve` | Approve submission |
+| POST | `/api/chairperson/graduation-portals/{id}/submissions/{subId}/reject` | Reject submission |
+
+### Cache Submission Endpoints (Auth Required)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/chairperson/graduation-portals/{id}/cache-submissions` | List cached submissions |
+| GET | `/api/chairperson/graduation-portals/{id}/cache-submissions/{subId}` | Get submission details |
+| POST | `/api/chairperson/graduation-portals/{id}/cache-submissions/{subId}/validate` | Validate submission |
+| POST | `/api/chairperson/graduation-portals/{id}/cache-submissions/{subId}/approve` | Approve submission |
+| POST | `/api/chairperson/graduation-portals/{id}/cache-submissions/{subId}/reject` | Reject submission |
+| GET | `/api/chairperson/graduation-portals/{id}/cache-submissions/{subId}/report` | Download report |
+| POST | `/api/chairperson/graduation-submissions/batch-validate` | Batch validate submissions |
+
+### Notification Endpoints (Auth Required)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/chairperson/graduation-notifications` | List notifications |
+| GET | `/api/chairperson/graduation-notifications/unread-count` | Get unread count |
+| POST | `/api/chairperson/graduation-notifications/{id}/read` | Mark as read |
+| POST | `/api/chairperson/graduation-notifications/mark-all-read` | Mark all as read |
+| DELETE | `/api/chairperson/graduation-notifications/{id}` | Delete notification |
+| DELETE | `/api/chairperson/graduation-notifications/clear-read` | Clear read notifications |
+
+---
+
+## 🐛 TROUBLESHOOTING: Portal List Not Loading
+
+### Backend Status (Verified Feb 19, 2026)
+```bash
+# Test: curl http://127.0.0.1:8000/api/public/graduation-portals
+# Result: Returns 3 active portals ✅
+```
+
+### Common Frontend Issues
+
+1. **Wrong API URL**
+   - Check if frontend is calling `/api/public/graduation-portals` (not `/api/graduation-portals`)
+   - Verify `NEXT_PUBLIC_API_URL` or similar env var is correct
+
+2. **CORS Issue**
+   - Backend is configured for CORS in `config/cors.php`
+   - Check browser console for CORS errors
+
+3. **Response Field Names**
+   - Response returns `{ portals: [...], total: N }`
+   - Frontend should access `response.data.portals` or `response.portals`
+
+4. **Network/Server**
+   - Ensure Laravel server is running: `php artisan serve`
+   - Check port matches frontend config (default: 8000)
+
+### Expected Response Format
+```json
+{
+  "portals": [
+    {
+      "id": "12",
+      "name": "Portal Name",
+      "description": "...",
+      "batch": "653",
+      "deadline": "2026-02-19",
+      "daysRemaining": 0.21,
+      "grace_period_end": "2026-02-26T00:00:00+00:00",
+      "is_in_grace_period": false,
+      "acceptedFormats": [".xlsx", ".xls", ".csv"],
+      "maxFileSizeMb": 5,
+      "curriculum": { "id": "...", "name": "...", "year": "..." } | null,
+      "department": { "id": "...", "name": "..." } | null
+    }
+  ],
+  "total": 3
+}
+```
+
+---
+
+## ⚙️ ENVIRONMENT VARIABLES
+
+```env
+# Session token validity (minutes) - how long after PIN verification
+GRADUATION_SESSION_TTL=15
+
+# Submission retention (days after portal deadline)
+GRADUATION_SUBMISSION_RETENTION_DAYS=7
+
+# Grace period (days after deadline students can still submit)
+GRADUATION_GRACE_PERIOD_DAYS=7
+
+# IP validation for session security
+GRADUATION_VALIDATE_IP=true
+```
+
+**Submission Lifecycle:**
+- Student submits → stored with TTL = `portal.deadline + RETENTION_DAYS`
+- On validate/approve/reject → TTL preserved (NOT deleted)
+- Auto-deleted when TTL expires
 
 ---
 

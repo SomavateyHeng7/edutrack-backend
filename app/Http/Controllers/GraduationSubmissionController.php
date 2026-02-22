@@ -718,7 +718,8 @@ class GraduationSubmissionController extends Controller
      */
     private function calculateCacheTtlSeconds(Carbon $deletionDate): int
     {
-        $seconds = $deletionDate->diffInSeconds(now(), false);
+        // Calculate seconds FROM now TO the deletion date (positive = future)
+        $seconds = now()->diffInSeconds($deletionDate, false);
         
         // Ensure positive TTL (minimum 1 hour = 3600 seconds)
         if ($seconds <= 0) {
