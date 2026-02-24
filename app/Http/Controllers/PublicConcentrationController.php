@@ -32,15 +32,19 @@ class PublicConcentrationController extends Controller
 
             $concentrations = $allDepartmentConcentrations->map(function ($concentration) {
                 $curriculumInfo = $concentration->curriculumConcentrations->first();
-                $requiredCourses = $curriculumInfo && isset($curriculumInfo->requiredCourses)
-                    ? $curriculumInfo->requiredCourses
-                    : $concentration->courses->count();
+                
+                // Get required credits from curriculum_concentrations, fallback to calculating from courses
+                $requiredCredits = $curriculumInfo && isset($curriculumInfo->required_credits)
+                    ? $curriculumInfo->required_credits
+                    : $concentration->courses->sum(function ($cc) {
+                        return $cc->course ? $cc->course->credits : 0;
+                    });
 
                 return [
                     'id' => $concentration->id,
                     'name' => $concentration->name,
                     'description' => $concentration->description,
-                    'requiredCourses' => $requiredCourses,
+                    'requiredCredits' => $requiredCredits,
                     'totalCourses' => $concentration->courses->count(),
                     'courses' => $concentration->courses->map(function ($cc) {
                         if (!$cc->course) return null;
