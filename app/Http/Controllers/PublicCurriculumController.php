@@ -27,7 +27,7 @@ class PublicCurriculumController extends Controller
                 'curriculumCourses.curriculumCorequisites.corequisiteCourse.course',
                 'curriculumConstraints',
                 'electiveRules'
-            ])->where('is_active', true);
+            ]);
 
             if ($facultyId) $query->where('faculty_id', $facultyId);
             if ($departmentId) $query->where('department_id', $departmentId);
